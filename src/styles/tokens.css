@@ -1,0 +1,50 @@
+:root {
+  /* Surface — matches the 3D background so the canvas has no visible seam */
+  --bg: #1a1d21;
+  --surface: #23272c;
+  --surface-raised: #2c3138;
+  --border: #383e46;
+  --border-strong: #4a525c;
+
+  /* Text */
+  --text: #e4e7ea;
+  --text-dim: #9aa3ac;
+  --text-faint: #656d76;
+
+  /* Accent — sage, pulled from the white pieces' detail colour */
+  --accent: #8fa89b;
+  --accent-bright: #a8c4b4;
+  --accent-dim: #5e7268;
+
+  /* Premove — brass, pulled from the black pieces' detail colour */
+  --premove: #b08d57;
+  --premove-dim: #7a6139;
+
+  /* Status */
+  --warning: #c87f4a;
+  --error: #c25b54;
+  --success: #7a9e6b;
+
+  /* Type */
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --size-xs: 0.6875rem; /* 11px — labels, eyebrows */
+  --size-sm: 0.8125rem; /* 13px — move list, secondary */
+  --size-md: 0.9375rem; /* 15px — body */
+  --size-lg: 1.25rem; /* 20px — notation field */
+  --size-xl: 1.75rem; /* 28px — clocks, result */
+
+  /* Space — 4px base */
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-6: 1.5rem;
+  --sp-8: 2rem;
+
+  --radius: 2px; /* nearly square; instrument-like */
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+}

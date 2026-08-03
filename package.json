@@ -1,0 +1,42 @@
+{
+  "name": "jchess",
+  "version": "1.0.0",
+  "description": "Voxel Chess with web Stockfish",
+  "type": "module",
+  "scripts": {
+    "postinstall": "mkdir -p public/engine && cp node_modules/stockfish/bin/stockfish-18-lite.js node_modules/stockfish/bin/stockfish-18-lite.wasm node_modules/stockfish/bin/stockfish-18-lite-single.js node_modules/stockfish/bin/stockfish-18-lite-single.wasm public/engine/",
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "lint": "eslint src tests",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"tests/**/*.ts\""
+  },
+  "dependencies": {
+    "chessops": "^0.15.1",
+    "idb": "^8.0.3",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "stockfish": "^18.0.8",
+    "three": "^0.185.1",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@types/node": "^26.1.2",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@types/three": "^0.185.3",
+    "@vitejs/plugin-react": "^6.0.5",
+    "eslint": "^10.8.0",
+    "happy-dom": "^20.11.1",
+    "prettier": "^3.9.6",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.0",
+    "vite-plugin-compression": "^0.5.1",
+    "vitest": "^4.1.10"
+  }
+}
