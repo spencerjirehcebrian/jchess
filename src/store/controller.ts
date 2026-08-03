@@ -1,40 +1,58 @@
-import { Store } from './index'
-import { Move, Color, AppError } from '../core/types'
-import { Engine } from '../engine/types'
-import { positionAfter, isLegal, toSan, outcome, toUci, fromUci, toFen } from '../core/rules'
-import { getDifficulty } from '../core/difficulty'
-import { audioEngine } from '../audio'
-import { getConfig } from '../config'
+import { Store } from "./index";
+import { Move, Color, AppError, GameState } from "../core/types";
+import { Engine } from "../engine/types";
+import {
+  positionAfter,
+  isLegal,
+  toSan,
+  outcome,
+  toUci,
+  fromUci,
+  toFen,
+} from "../core/rules";
+import { getDifficulty } from "../core/difficulty";
+import { audioEngine } from "../audio";
+import { getConfig } from "../config";
 
 export class GameController {
-  private store: Store
-  private engine: Engine | null = null
+  private store: Store;
+
+  private get state(): GameState {
+    if (
+      "getState" in (this.store as any) &&
+      typeof (this.store as any).getState === "function"
+    ) {
+      return (this.store as any).getState();
+    }
+    return this.store as unknown as GameState;
+  }
+  private engine: Engine | null = null;
 
   constructor(store: Store, engine?: Engine) {
-    this.store = store
+    this.store = store;
     if (engine) {
-      this.engine = engine
+      this.engine = engine;
     }
   }
 
   setEngine(engine: Engine) {
-    this.engine = engine
+    this.engine = engine;
   }
 
   startNewGame(options?: {
-    humanColor?: Color
-    difficulty?: number
-    initialFen?: string
+    humanColor?: Color;
+    difficulty?: number;
+    initialFen?: string;
   }) {
-    const config = getConfig()
-    const humanColor = options?.humanColor ?? 'white'
-    const difficulty = options?.difficulty ?? config.defaultDifficulty
-    const initialFen = options?.initialFen ?? this.store.initialFen
+    const config = getConfig();
+    const humanColor = options?.humanColor ?? "white";
+    const difficulty = options?.difficulty ?? this.state.difficulty ?? config.defaultDifficulty;
+    const initialFen = options?.initialFen ?? this.state.initialFen;
 
     const newStatus =
-      humanColor === 'white'
-        ? ({ kind: 'human-turn' } as const)
-        : ({ kind: 'engine-thinking', startedAt: Date.now() } as const)
+      humanColor === "white"
+        ? ({ kind: "human-turn" } as const)
+        : ({ kind: "engine-thinking", startedAt: Date.now() } as const);
 
     this.store.setState(() => ({
       initialFen,
@@ -45,56 +63,59 @@ export class GameController {
       status: newStatus,
       premoves: [],
       selectedSquare: null,
-      startedAt: Date.now()
-    }))
+      startedAt: Date.now(),
+    }));
 
-    if (humanColor === 'black') {
-      this.triggerEngineSearch()
+    if (humanColor === "black") {
+      this.triggerEngineSearch();
     }
   }
 
   makeMove(move: Move): boolean {
-    const state = this.store
+    const state = this.state;
     if (state.cursor < state.history.length) {
       // Browsing history: reject move
-      return false
+      return false;
     }
 
-    if (state.status.kind === 'engine-thinking' || state.status.kind === 'engine-delaying') {
+    if (
+      state.status.kind === "engine-thinking" ||
+      state.status.kind === "engine-delaying"
+    ) {
       // Add to premove queue if within maxPremoves limit
-      const config = getConfig()
+      const config = getConfig();
       if (state.premoves.length < config.maxPremoves) {
-        audioEngine.playSound('premove')
+        audioEngine.playSound("premove");
         this.store.setState((prev) => ({
-          premoves: [...prev.premoves, move]
-        }))
-        return true
+          premoves: [...prev.premoves, move],
+        }));
+        return true;
       }
-      return false
+      return false;
     }
 
-    if (state.status.kind !== 'human-turn') {
-      return false
+    if (state.status.kind !== "human-turn") {
+      return false;
     }
 
     const currentPos = positionAfter(
       state.initialFen,
-      state.history.map((h) => h.move)
-    )
+      state.history.map((h) => h.move),
+    );
 
     if (!isLegal(currentPos, move)) {
-      return false
+      return false;
     }
 
-    const sanStr = toSan(currentPos, move)
+    const sanStr = toSan(currentPos, move);
     const posAfter = positionAfter(state.initialFen, [
       ...state.history.map((h) => h.move),
-      move
-    ])
-    const fenAfterStr = toFen(posAfter)
-    const isCheck = posAfter.isCheck()
-    const isMate = posAfter.isEnd() && isCheck
-    const captured = currentPos.board.get(move.to)?.role
+      move,
+    ]);
+    const fenAfterStr = toFen(posAfter);
+    const isCheck = posAfter.isCheck();
+    const isMate = posAfter.isEnd() && isCheck;
+    const captured = currentPos.board.get(move.to)?.role;
 
     const newHistory = [
       ...state.history,
@@ -104,120 +125,126 @@ export class GameController {
         fenAfter: fenAfterStr,
         captured,
         isCheck,
-        isMate
-      }
-    ]
+        isMate,
+      },
+    ];
 
-    const gameOutcome = outcome(posAfter, newHistory)
+    const gameOutcome = outcome(posAfter, newHistory, state.initialFen);
 
     if (gameOutcome) {
-      if (gameOutcome.winner === state.humanColor) audioEngine.playSound('victory')
-      else if (gameOutcome.winner && gameOutcome.winner !== state.humanColor) audioEngine.playSound('defeat')
-      else audioEngine.playSound('draw')
+      if (gameOutcome.winner === state.humanColor)
+        audioEngine.playSound("victory");
+      else if (gameOutcome.winner && gameOutcome.winner !== state.humanColor)
+        audioEngine.playSound("defeat");
+      else audioEngine.playSound("draw");
 
       this.store.setState(() => ({
         history: newHistory,
         cursor: newHistory.length,
-        status: { kind: 'over', result: gameOutcome },
-        selectedSquare: null
-      }))
-      return true
+        status: { kind: "over", result: gameOutcome },
+        selectedSquare: null,
+      }));
+      return true;
     }
 
-    if (isCheck) audioEngine.playSound('check')
-    else if (captured) audioEngine.playSound('capture')
-    else audioEngine.playSound('move')
+    if (isCheck) audioEngine.playSound("check");
+    else if (captured) audioEngine.playSound("capture");
+    else audioEngine.playSound("move");
 
     this.store.setState(() => ({
       history: newHistory,
       cursor: newHistory.length,
-      status: { kind: 'engine-thinking', startedAt: Date.now() },
-      selectedSquare: null
-    }))
+      status: { kind: "engine-thinking", startedAt: Date.now() },
+      selectedSquare: null,
+    }));
 
-    this.triggerEngineSearch()
-    return true
+    this.triggerEngineSearch();
+    return true;
   }
 
   private async triggerEngineSearch() {
-    if (!this.engine) return
+    if (!this.engine) return;
 
-    const state = this.store
-    const level = getDifficulty(state.difficulty)
-    const currentMoves = state.history.map((h) => toUci(h.move))
+    const state = this.state;
+    const level = getDifficulty(state.difficulty);
+    const currentMoves = state.history.map((h) => toUci(h.move));
 
     if (level.uciOptions) {
-      await this.engine.setOptions(level.uciOptions)
+      await this.engine.setOptions(level.uciOptions);
     }
 
-    const startTime = performance.now()
+    const startTime = performance.now();
 
     try {
       const searchResult = await this.engine.search(
         state.initialFen,
         currentMoves,
-        level.budget
-      )
+        level.budget,
+      );
 
-      const elapsed = performance.now() - startTime
-      const [minThink, maxThink] = level.thinkTimeFloorMs
+      const elapsed = performance.now() - startTime;
+      const [minThink, maxThink] = level.thinkTimeFloorMs;
       const targetThink =
-        minThink + Math.floor(Math.random() * (maxThink - minThink + 1))
-      const delayMs = level.id === 8 ? 0 : Math.max(0, targetThink - elapsed)
+        minThink + Math.floor(Math.random() * (maxThink - minThink + 1));
+      const delayMs = level.id === 8 ? 0 : Math.max(0, targetThink - elapsed);
 
-      const parsedMove = fromUci(searchResult.move)
+      const parsedMove = fromUci(searchResult.move);
       const currentPos = positionAfter(
         state.initialFen,
-        state.history.map((h) => h.move)
-      )
+        state.history.map((h) => h.move),
+      );
 
       if (!parsedMove || !isLegal(currentPos, parsedMove)) {
         this.store.setState(() => ({
           status: {
-            kind: 'error',
+            kind: "error",
             error: {
-              code: 'ILLEGAL_ENGINE_MOVE',
-              message: `Engine returned an illegal move: ${searchResult.move}`
-            }
-          }
-        }))
-        return
+              code: "ILLEGAL_ENGINE_MOVE",
+              message: `Engine returned an illegal move: ${searchResult.move}`,
+            },
+          },
+        }));
+        return;
       }
 
       if (delayMs > 0) {
         this.store.setState(() => ({
-          status: { kind: 'engine-delaying', move: parsedMove, until: Date.now() + delayMs }
-        }))
-        await new Promise((r) => setTimeout(r, delayMs))
+          status: {
+            kind: "engine-delaying",
+            move: parsedMove,
+            until: Date.now() + delayMs,
+          },
+        }));
+        await new Promise((r) => setTimeout(r, delayMs));
       }
 
-      this.applyEngineMove(parsedMove)
+      this.applyEngineMove(parsedMove);
     } catch (err: unknown) {
       const appErr: AppError = {
-        code: 'ENGINE_SEARCH_FAILED',
-        message: err instanceof Error ? err.message : 'Engine search failed'
-      }
+        code: "ENGINE_SEARCH_FAILED",
+        message: err instanceof Error ? err.message : "Engine search failed",
+      };
       this.store.setState(() => ({
-        status: { kind: 'error', error: appErr }
-      }))
+        status: { kind: "error", error: appErr },
+      }));
     }
   }
 
   private applyEngineMove(move: Move) {
-    const state = this.store
+    const state = this.state;
     const currentPos = positionAfter(
       state.initialFen,
-      state.history.map((h) => h.move)
-    )
-    const sanStr = toSan(currentPos, move)
+      state.history.map((h) => h.move),
+    );
+    const sanStr = toSan(currentPos, move);
     const posAfter = positionAfter(state.initialFen, [
       ...state.history.map((h) => h.move),
-      move
-    ])
-    const fenAfterStr = toFen(posAfter)
-    const isCheck = posAfter.isCheck()
-    const isMate = posAfter.isEnd() && isCheck
-    const captured = currentPos.board.get(move.to)?.role
+      move,
+    ]);
+    const fenAfterStr = toFen(posAfter);
+    const isCheck = posAfter.isCheck();
+    const isMate = posAfter.isEnd() && isCheck;
+    const captured = currentPos.board.get(move.to)?.role;
 
     const newHistory = [
       ...state.history,
@@ -227,36 +254,46 @@ export class GameController {
         fenAfter: fenAfterStr,
         captured,
         isCheck,
-        isMate
-      }
-    ]
+        isMate,
+      },
+    ];
 
-    const gameOutcome = outcome(posAfter, newHistory)
+    const gameOutcome = outcome(posAfter, newHistory, state.initialFen);
 
     if (gameOutcome) {
+      if (gameOutcome.winner === state.humanColor)
+        audioEngine.playSound("victory");
+      else if (gameOutcome.winner && gameOutcome.winner !== state.humanColor)
+        audioEngine.playSound("defeat");
+      else audioEngine.playSound("draw");
+
       this.store.setState(() => ({
         history: newHistory,
         cursor: newHistory.length,
-        status: { kind: 'over', result: gameOutcome },
-        premoves: []
-      }))
-      return
+        status: { kind: "over", result: gameOutcome },
+        premoves: [],
+      }));
+      return;
     }
+
+    if (isCheck) audioEngine.playSound("check");
+    else if (captured) audioEngine.playSound("capture");
+    else audioEngine.playSound("move");
 
     // Drain premove queue
     if (state.premoves.length > 0) {
-      const [headPremove, ...tailPremoves] = state.premoves
+      const [headPremove, ...tailPremoves] = state.premoves;
       if (headPremove && isLegal(posAfter, headPremove)) {
         // Head premove is legal: apply it
-        const premoveSan = toSan(posAfter, headPremove)
+        const premoveSan = toSan(posAfter, headPremove);
         const posAfterPremove = positionAfter(state.initialFen, [
           ...newHistory.map((h) => h.move),
-          headPremove
-        ])
-        const premoveFenAfter = toFen(posAfterPremove)
-        const premoveCheck = posAfterPremove.isCheck()
-        const premoveMate = posAfterPremove.isEnd() && premoveCheck
-        const premoveCaptured = posAfter.board.get(headPremove.to)?.role
+          headPremove,
+        ]);
+        const premoveFenAfter = toFen(posAfterPremove);
+        const premoveCheck = posAfterPremove.isCheck();
+        const premoveMate = posAfterPremove.isEnd() && premoveCheck;
+        const premoveCaptured = posAfter.board.get(headPremove.to)?.role;
 
         const historyWithPremove = [
           ...newHistory,
@@ -266,95 +303,115 @@ export class GameController {
             fenAfter: premoveFenAfter,
             captured: premoveCaptured,
             isCheck: premoveCheck,
-            isMate: premoveMate
-          }
-        ]
+            isMate: premoveMate,
+          },
+        ];
 
-        const premoveOutcome = outcome(posAfterPremove, historyWithPremove)
+        const premoveOutcome = outcome(
+          posAfterPremove,
+          historyWithPremove,
+          state.initialFen,
+        );
 
         if (premoveOutcome) {
+          if (premoveOutcome.winner === state.humanColor)
+            audioEngine.playSound("victory");
+          else if (
+            premoveOutcome.winner &&
+            premoveOutcome.winner !== state.humanColor
+          )
+            audioEngine.playSound("defeat");
+          else audioEngine.playSound("draw");
+
           this.store.setState(() => ({
             history: historyWithPremove,
             cursor: historyWithPremove.length,
-            status: { kind: 'over', result: premoveOutcome },
-            premoves: []
-          }))
-          return
+            status: { kind: "over", result: premoveOutcome },
+            premoves: [],
+          }));
+          return;
         }
+
+        if (premoveCheck) audioEngine.playSound("check");
+        else if (premoveCaptured) audioEngine.playSound("capture");
+        else audioEngine.playSound("move");
 
         this.store.setState(() => ({
           history: historyWithPremove,
           cursor: historyWithPremove.length,
-          status: { kind: 'engine-thinking', startedAt: Date.now() },
-          premoves: tailPremoves
-        }))
+          status: { kind: "engine-thinking", startedAt: Date.now() },
+          premoves: tailPremoves,
+        }));
 
-        this.triggerEngineSearch()
-        return
+        this.triggerEngineSearch();
+        return;
       } else {
         // Head premove illegal: clear entire queue
         this.store.setState(() => ({
           history: newHistory,
           cursor: newHistory.length,
-          status: { kind: 'human-turn' },
-          premoves: []
-        }))
-        return
+          status: { kind: "human-turn" },
+          premoves: [],
+        }));
+        return;
       }
     }
 
     this.store.setState(() => ({
       history: newHistory,
       cursor: newHistory.length,
-      status: { kind: 'human-turn' }
-    }))
+      status: { kind: "human-turn" },
+    }));
   }
 
   takeback() {
     if (this.engine) {
-      this.engine.stop()
+      this.engine.stop();
     }
 
-    const state = this.store
-    if (state.history.length === 0) return
+    const state = this.state;
+    if (state.history.length === 0) return;
 
     // Remove 2 plies if human vs engine, or 1 if only 1 ply exists
-    const pliesToRemove = state.history.length >= 2 ? 2 : 1
-    const newHistory = state.history.slice(0, state.history.length - pliesToRemove)
+    const pliesToRemove = state.history.length >= 2 ? 2 : 1;
+    const newHistory = state.history.slice(
+      0,
+      state.history.length - pliesToRemove,
+    );
 
     this.store.setState(() => ({
       history: newHistory,
       cursor: newHistory.length,
-      status: { kind: 'human-turn' },
+      status: { kind: "human-turn" },
       premoves: [],
-      selectedSquare: null
-    }))
+      selectedSquare: null,
+    }));
   }
 
   setCursor(index: number) {
-    const state = this.store
-    const clampedIndex = Math.max(0, Math.min(state.history.length, index))
+    const state = this.state;
+    const clampedIndex = Math.max(0, Math.min(state.history.length, index));
     this.store.setState(() => ({
       cursor: clampedIndex,
-      premoves: []
-    }))
+      premoves: [],
+    }));
   }
 
   clearPremoves() {
     this.store.setState(() => ({
-      premoves: []
-    }))
+      premoves: [],
+    }));
   }
 
   setSelectedSquare(square: number | null) {
     this.store.setState(() => ({
-      selectedSquare: square
-    }))
+      selectedSquare: square,
+    }));
   }
 
   flipBoard() {
     this.store.setState((prev) => ({
-      boardFlipped: !prev.boardFlipped
-    }))
+      boardFlipped: !prev.boardFlipped,
+    }));
   }
 }

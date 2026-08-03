@@ -1,88 +1,95 @@
-import { describe, it, expect } from 'vitest'
-import { FIXTURE_FENS } from '../fixtures/positions'
-import { positionFromFen, legalMoves, positionAfter } from '../../src/core/rules'
-import { premoveDestinations, generatePremoves } from '../../src/core/premove'
-import { nameToSquare } from '../../src/core/types'
+import { describe, it, expect } from "vitest";
+import { FIXTURE_FENS } from "../fixtures/positions";
+import {
+  positionFromFen,
+  legalMoves,
+  positionAfter,
+} from "../../src/core/rules";
+import { premoveDestinations, generatePremoves } from "../../src/core/premove";
+import { nameToSquare } from "../../src/core/types";
 
-describe('premove module', () => {
-  it('knight on d4 has 8 destinations; on a1 has 2', () => {
-    const d4Pos = positionFromFen('4k3/8/8/8/3N4/8/8/4K3 w - - 0 1')
-    const d4Dest = premoveDestinations(d4Pos, nameToSquare('d4')!)
-    expect(d4Dest.length).toBe(8)
+describe("premove module", () => {
+  it("knight on d4 has 8 destinations; on a1 has 2", () => {
+    const d4Pos = positionFromFen("4k3/8/8/8/3N4/8/8/4K3 w - - 0 1");
+    const d4Dest = premoveDestinations(d4Pos, nameToSquare("d4")!);
+    expect(d4Dest.length).toBe(8);
 
-    const a1Pos = positionFromFen('4k3/8/8/8/8/8/8/N3K3 w - - 0 1')
-    const a1Dest = premoveDestinations(a1Pos, nameToSquare('a1')!)
-    expect(a1Dest.length).toBe(2)
-  })
+    const a1Pos = positionFromFen("4k3/8/8/8/8/8/8/N3K3 w - - 0 1");
+    const a1Dest = premoveDestinations(a1Pos, nameToSquare("a1")!);
+    expect(a1Dest.length).toBe(2);
+  });
 
-  it('rook ray stops at own piece but continues past enemy piece', () => {
-    const ownPos = positionFromFen('4k3/8/3P4/8/3R4/8/8/4K3 w - - 0 1')
-    const ownDest = premoveDestinations(ownPos, nameToSquare('d4')!)
-    expect(ownDest.includes(nameToSquare('d5')!)).toBe(true)
-    expect(ownDest.includes(nameToSquare('d6')!)).toBe(false)
-    expect(ownDest.includes(nameToSquare('d7')!)).toBe(false)
+  it("rook ray stops at own piece but continues past enemy piece", () => {
+    const ownPos = positionFromFen("4k3/8/3P4/8/3R4/8/8/4K3 w - - 0 1");
+    const ownDest = premoveDestinations(ownPos, nameToSquare("d4")!);
+    expect(ownDest.includes(nameToSquare("d5")!)).toBe(true);
+    expect(ownDest.includes(nameToSquare("d6")!)).toBe(false);
+    expect(ownDest.includes(nameToSquare("d7")!)).toBe(false);
 
-    const enemyPos = positionFromFen('4k3/8/3p4/8/3R4/8/8/4K3 w - - 0 1')
-    const enemyDest = premoveDestinations(enemyPos, nameToSquare('d4')!)
-    expect(enemyDest.includes(nameToSquare('d5')!)).toBe(true)
-    expect(enemyDest.includes(nameToSquare('d6')!)).toBe(true)
-    expect(enemyDest.includes(nameToSquare('d7')!)).toBe(true)
-    expect(enemyDest.includes(nameToSquare('d8')!)).toBe(true)
-  })
+    const enemyPos = positionFromFen("4k3/8/3p4/8/3R4/8/8/4K3 w - - 0 1");
+    const enemyDest = premoveDestinations(enemyPos, nameToSquare("d4")!);
+    expect(enemyDest.includes(nameToSquare("d5")!)).toBe(true);
+    expect(enemyDest.includes(nameToSquare("d6")!)).toBe(true);
+    expect(enemyDest.includes(nameToSquare("d7")!)).toBe(true);
+    expect(enemyDest.includes(nameToSquare("d8")!)).toBe(true);
+  });
 
-  it('pawn on e2 offers e3, e4, d3, f3', () => {
-    const pos = positionFromFen(FIXTURE_FENS.START)
-    const e2 = nameToSquare('e2')!
-    const dests = premoveDestinations(pos, e2)
-    expect(dests.length).toBe(4)
-    expect(dests).toContain(nameToSquare('e3')!)
-    expect(dests).toContain(nameToSquare('e4')!)
-    expect(dests).toContain(nameToSquare('d3')!)
-    expect(dests).toContain(nameToSquare('f3')!)
-  })
+  it("pawn on e2 offers e3, e4, d3, f3", () => {
+    const pos = positionFromFen(FIXTURE_FENS.START);
+    const e2 = nameToSquare("e2")!;
+    const dests = premoveDestinations(pos, e2);
+    expect(dests.length).toBe(4);
+    expect(dests).toContain(nameToSquare("e3")!);
+    expect(dests).toContain(nameToSquare("e4")!);
+    expect(dests).toContain(nameToSquare("d3")!);
+    expect(dests).toContain(nameToSquare("f3")!);
+  });
 
-  it('pawn on e2 blocked by own piece on e3 still offers diagonals', () => {
-    const pos = positionFromFen('rnbqkbnr/pppppppp/8/8/8/4P3/PPPPPPPP/RNBQKBNR w KQkq - 0 1')
-    const e2 = nameToSquare('e2')!
-    const dests = premoveDestinations(pos, e2)
-    expect(dests).not.toContain(nameToSquare('e3')!)
-    expect(dests).not.toContain(nameToSquare('e4')!)
-    expect(dests).toContain(nameToSquare('d3')!)
-    expect(dests).toContain(nameToSquare('f3')!)
-  })
+  it("pawn on e2 blocked by own piece on e3 still offers diagonals", () => {
+    const pos = positionFromFen(
+      "rnbqkbnr/pppppppp/8/8/8/4P3/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    );
+    const e2 = nameToSquare("e2")!;
+    const dests = premoveDestinations(pos, e2);
+    expect(dests).not.toContain(nameToSquare("e3")!);
+    expect(dests).not.toContain(nameToSquare("e4")!);
+    expect(dests).toContain(nameToSquare("d3")!);
+    expect(dests).toContain(nameToSquare("f3")!);
+  });
 
-  it('pawn reaching last rank offers all four promotion choices per target square', () => {
-    const pos = positionFromFen(FIXTURE_FENS.PROMOTION_PUSH)
-    const e7 = nameToSquare('e7')!
-    const moves = generatePremoves(pos, e7)
-    expect(moves.length).toBe(12) // e8, d8, f8 x 4 promos
-  })
+  it("pawn reaching last rank offers all four promotion choices per target square", () => {
+    const pos = positionFromFen(FIXTURE_FENS.PROMOTION_PUSH);
+    const e7 = nameToSquare("e7")!;
+    const moves = generatePremoves(pos, e7);
+    expect(moves.length).toBe(12); // e8, d8, f8 x 4 promos
+  });
 
-  it('king offers castling when castling rights exist even under attack', () => {
-    const pos = positionFromFen(FIXTURE_FENS.CASTLE_THROUGH_CHECK)
-    const e1 = nameToSquare('e1')!
-    const dests = premoveDestinations(pos, e1)
-    expect(dests).toContain(nameToSquare('g1')!)
-    expect(dests).toContain(nameToSquare('c1')!)
-  })
+  it("king offers castling when castling rights exist even under attack", () => {
+    const pos = positionFromFen(FIXTURE_FENS.CASTLE_THROUGH_CHECK);
+    const e1 = nameToSquare("e1")!;
+    const dests = premoveDestinations(pos, e1);
+    expect(dests).toContain(nameToSquare("g1")!);
+    expect(dests).toContain(nameToSquare("c1")!);
+  });
 
-  it('superset property test: legal moves after any legal opponent reply are in relaxed premove set', () => {
-    const pos = positionFromFen(FIXTURE_FENS.START)
-    const oppMoves = legalMoves(pos)
+  it("superset property test: legal moves after any legal opponent reply are in relaxed premove set", () => {
+    const pos = positionFromFen(FIXTURE_FENS.START);
+    const oppMoves = legalMoves(pos);
 
     for (const oppMove of oppMoves.slice(0, 5)) {
-      const posAfterOpp = positionAfter(FIXTURE_FENS.START, [oppMove])
-      const myLegalMoves = legalMoves(posAfterOpp)
+      const posAfterOpp = positionAfter(FIXTURE_FENS.START, [oppMove]);
+      const myLegalMoves = legalMoves(posAfterOpp);
 
       for (const myMove of myLegalMoves) {
-        const relaxedDests = premoveDestinations(pos, myMove.from)
+        const relaxedDests = premoveDestinations(pos, myMove.from);
         // Note: Castling moves in legalMoves may be normalized to 6 (g1) or 2 (c1)
         if (!relaxedDests.includes(myMove.to)) {
           // If castling, premoveDestinations includes g1 (6) or c1 (2)
-          if (myMove.from === 4 && (myMove.to === 6 || myMove.to === 2)) continue
-          expect(relaxedDests).toContain(myMove.to)
+          if (myMove.from === 4 && (myMove.to === 6 || myMove.to === 2))
+            continue;
+          expect(relaxedDests).toContain(myMove.to);
         }
       }
     }
-  })
-})
+  });
+});
