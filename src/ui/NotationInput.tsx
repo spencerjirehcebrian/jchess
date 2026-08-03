@@ -12,6 +12,7 @@ export function NotationInput({ controller }: NotationInputProps) {
   const state = useGameStore();
   const [buffer, setBuffer] = useState("");
   const [isShaking, setIsShaking] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const isEngineThinking =
@@ -96,11 +97,32 @@ export function NotationInput({ controller }: NotationInputProps) {
   })();
 
   const accentColor = isPremoveMode ? "var(--premove)" : "var(--accent)";
-  const borderColor = isShaking
+
+  /*
+   * Inverted extrusion. Every other surface in the app is a block you press
+   * on — lit along the top edge, shadowed along the bottom. This is the one
+   * thing you type into, so the light falls the other way and it reads as a
+   * slot cut into the material rather than a button sitting on it.
+   */
+  const recess = [
+    "inset 0 2px 0 0 var(--voxel-under)",
+    "inset 2px 0 0 0 var(--voxel-under)",
+    "inset 0 -2px 0 0 var(--voxel-top)",
+  ].join(", ");
+
+  /*
+   * The native outline is suppressed because clip-path would crop it, so the
+   * ring is the only thing marking focus. It matters more here than on a
+   * button: the caret is painted by the app, and a caret blinking in a field
+   * that is not focused claims you can type into it.
+   */
+  const stateRing = isShaking
     ? "var(--error)"
     : notationState.exactMatch
       ? accentColor
-      : "var(--border-strong)";
+      : isFocused
+        ? "var(--accent-bright)"
+        : null;
 
   return (
     <div
@@ -112,9 +134,9 @@ export function NotationInput({ controller }: NotationInputProps) {
         flexShrink: 0,
         boxSizing: "border-box",
         position: "relative",
-        background: "var(--voxel-face)",
+        background: "var(--voxel-well)",
         clipPath: "var(--vx-notch)",
-        boxShadow: `inset 0 2px 0 0 ${borderColor}, inset -2px 0 0 0 var(--voxel-side), inset 0 -2px 0 0 var(--voxel-under)`,
+        boxShadow: stateRing ? `inset 0 0 0 2px ${stateRing}, ${recess}` : recess,
         padding: "var(--sp-3) var(--sp-4)",
         fontFamily: "var(--font-mono)",
         display: "flex",
@@ -189,6 +211,8 @@ export function NotationInput({ controller }: NotationInputProps) {
             value={buffer}
             onChange={(e) => setBuffer(e.target.value)}
             onKeyDown={handleKeyDown}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
             aria-label="Enter move in algebraic notation"
             aria-describedby="notation-candidates"
             autoComplete="off"
@@ -211,6 +235,7 @@ export function NotationInput({ controller }: NotationInputProps) {
             aria-hidden="true"
             style={{
               position: "absolute",
+              display: isFocused ? "block" : "none",
               top: "50%",
               left: `${buffer.length}ch`,
               transform: "translateY(-50%)",
@@ -244,7 +269,6 @@ export function NotationInput({ controller }: NotationInputProps) {
           fontSize: "var(--size-sm)",
           color: "var(--text-dim)",
           marginTop: "var(--sp-2)",
-          visibility: buffer ? "visible" : "hidden",
           whiteSpace: "nowrap",
           overflow: "hidden",
           textOverflow: "ellipsis",

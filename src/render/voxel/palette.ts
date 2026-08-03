@@ -69,9 +69,9 @@ export const THEMES: Record<string, Theme> = {
     background: "#0A0705",
     backgroundTop: "#1F1610",
     cssTokens: {
-      bg: "#100C0A",
-      surface: "#1A1512",
-      surfaceRaised: "#241D18",
+      bg: "#090605",
+      surface: "#17120F",
+      surfaceRaised: "#302722",
       border: "#33291F",
       borderStrong: "#4A3B2A",
       text: "#EDE0C8",
@@ -109,9 +109,9 @@ export const THEMES: Record<string, Theme> = {
     background: "#14171A",
     backgroundTop: "#2A3138",
     cssTokens: {
-      bg: "#1A1D21",
-      surface: "#23272C",
-      surfaceRaised: "#2C3138",
+      bg: "#0E1013",
+      surface: "#191C20",
+      surfaceRaised: "#3A4049",
       border: "#383E46",
       borderStrong: "#4A525C",
       text: "#E4E7EA",
@@ -149,9 +149,9 @@ export const THEMES: Record<string, Theme> = {
     background: "#0D0D0D",
     backgroundTop: "#242424",
     cssTokens: {
-      bg: "#121212",
-      surface: "#1B1B1B",
-      surfaceRaised: "#242424",
+      bg: "#080808",
+      surface: "#151515",
+      surfaceRaised: "#313131",
       border: "#333333",
       borderStrong: "#444444",
       text: "#F0F0F0",
@@ -189,9 +189,9 @@ export const THEMES: Record<string, Theme> = {
     background: "#131C1A",
     backgroundTop: "#2A3B35",
     cssTokens: {
-      bg: "#1A2421",
-      surface: "#23312D",
-      surfaceRaised: "#2D3E39",
+      bg: "#0D1412",
+      surface: "#18211E",
+      surfaceRaised: "#3C534C",
       border: "#3A4E47",
       borderStrong: "#4E685F",
       text: "#E2E8DD",
@@ -220,6 +220,14 @@ export const FACE_SHADING = {
   sideX: 0.82,
   sideZ: 0.72,
 } as const;
+
+/**
+ * Deeper than any face the mesher produces, because it is not a face — it is
+ * the floor of a hole cut into the material. The notation field is the one
+ * surface in the app you push into rather than press on, and it needs a value
+ * below the shadowed bottom edge for that reading to hold.
+ */
+export const WELL_SHADING = 0.45;
 
 /** Multiplies a hex colour by a scalar, the way the mesher shades a face. */
 export function shadeHex(hex: string, factor: number): string {
@@ -271,6 +279,7 @@ export function applyThemeToCss(theme: Theme): void {
     "--voxel-under",
     shadeHex(material, FACE_SHADING.bottom),
   );
+  root.style.setProperty("--voxel-well", shadeHex(material, WELL_SHADING));
 
   // Same treatment for the accent, used by pressed and active controls.
   root.style.setProperty(

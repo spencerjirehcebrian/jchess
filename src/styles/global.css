@@ -176,10 +176,14 @@ input::placeholder {
 /*
  * clip-path crops an outline, so focus is drawn as an inset ring instead.
  * It has to survive the clip to satisfy the keyboard floor.
+ *
+ * Deliberately not `:has(:focus-visible)`. A panel that lights its whole edge
+ * because something inside it is focused was tolerable when panels were cards;
+ * now that the rail is one full-height panel, it drew a ring around the entire
+ * column and drowned out the control the user was actually on.
  */
 .vx-panel:focus-visible,
-.vx-button:focus-visible,
-.vx-panel:has(:focus-visible) {
+.vx-button:focus-visible {
   outline: none;
   box-shadow:
     inset 0 0 0 2px var(--accent-bright),
@@ -237,6 +241,15 @@ input::placeholder {
   }
 }
 
+/*
+ * The transcript takes whatever the rail has left over. Kept here rather than
+ * inline so the mobile override below can actually win.
+ */
+.app-move-list {
+  flex: 1;
+  min-height: 0;
+}
+
 .app-main-layout {
   flex: 1;
   display: grid;
@@ -275,13 +288,10 @@ input::placeholder {
     width: 100%;
   }
 
-  .app-header-size {
-    display: none;
-  }
-
   /* flex: 1 has nothing to divide once the rail is auto-height. */
   .app-move-list {
-    min-height: 140px;
+    flex: none;
+    min-height: 180px;
   }
 }
 

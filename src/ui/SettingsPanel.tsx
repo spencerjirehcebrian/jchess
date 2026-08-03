@@ -1,6 +1,7 @@
 import { useGameStore } from "../store";
 import { GameController } from "../store/controller";
 import { THEMES } from "../render/voxel/palette";
+import { BoardSizeControls } from "./BoardSizeControls";
 
 interface SettingsPanelProps {
   controller?: GameController | null;
@@ -10,7 +11,6 @@ interface SettingsPanelProps {
 export function SettingsPanel({ controller, onClose }: SettingsPanelProps) {
   const currentTheme = useGameStore((s) => s.theme) ?? "lacquer";
   const currentMaxPremoves = useGameStore((s) => s.maxPremoves) ?? 3;
-  const currentBoardSize = useGameStore((s) => s.boardSize) ?? "normal";
 
   const optionStyle: React.CSSProperties = {
     background: "var(--surface-raised)",
@@ -86,49 +86,12 @@ export function SettingsPanel({ controller, onClose }: SettingsPanelProps) {
             gap: "var(--sp-4)",
           }}
         >
-          <div>
-            <label
-              htmlFor="settings-board-size"
-              style={{
-                display: "block",
-                fontSize: "var(--size-sm)",
-                color: "var(--text-dim)",
-                marginBottom: "var(--sp-1)",
-              }}
-            >
-              Board Size
-            </label>
-            <select
-              id="settings-board-size"
-              value={currentBoardSize}
-              onChange={(e) =>
-                controller?.setBoardSize(
-                  e.target.value as "compact" | "normal" | "large" | "full",
-                )
-              }
-              style={{
-                width: "100%",
-                padding: "var(--sp-2)",
-                background: "var(--surface-raised)",
-                border: "1px solid var(--border)",
-                color: "var(--text)",
-                borderRadius: "var(--radius)",
-              }}
-            >
-              <option value="compact" style={optionStyle}>
-                Compact (600px max)
-              </option>
-              <option value="normal" style={optionStyle}>
-                Normal (720px max)
-              </option>
-              <option value="large" style={optionStyle}>
-                Large (900px max)
-              </option>
-              <option value="full" style={optionStyle}>
-                Full (Maximum / Widescreen)
-              </option>
-            </select>
-          </div>
+          {/*
+            The stepper used to sit in the header, duplicating a select that
+            lived here. Board size is set once and forgotten, so it belongs in
+            settings and the header keeps its space for the wordmark.
+          */}
+          <BoardSizeControls controller={controller ?? null} />
 
           <div>
             <label

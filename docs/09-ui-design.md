@@ -12,6 +12,16 @@ catches the light, its right edge is an X face, its bottom edge is in shadow.
 Corners step rather than curve, matching the two-voxel taper on every piece
 base. Radius is zero; there are no blurred shadows anywhere.
 
+Two surfaces invert this. The transcript and the notation field are **wells**:
+their light falls the other way — shadowed along the top edge, lit along the
+bottom — so they read as cut into the material rather than sitting on it. The
+notation field is the one thing in the app you type into, and the transcript is
+the one thing the app writes into. Everything else is a block you press.
+
+`--bg` sits well below `--voxel-face` on purpose. The panel front is a Z face at
+0.72 of the material, so if the background is not pushed clear of that product
+the chrome shades itself into the room and every panel disappears.
+
 `applyThemeToCss()` derives the `--voxel-*` set from the active theme, so the
 chrome re-lights itself when the board does.
 
@@ -59,6 +69,7 @@ so the first paint matches the scene instead of flashing a grey shell.
   --voxel-top:   ...;   /* material x 1.00 — the lit top edge */
   --voxel-side:  ...;   /* material x 0.82 — the right edge   */
   --voxel-under: ...;   /* material x 0.55 — the bottom edge  */
+  --voxel-well:  ...;   /* material x 0.45 — the floor of a recess */
 
   /* Type */
   --font-display: 'Archivo', system-ui, sans-serif;
@@ -86,27 +97,50 @@ option — this is not a preference, it is a hard constraint of the COEP header.
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│  VOXEL CHESS            level 4 · strong club      ⚙  ?  │  56px
+│  JCHESS                                                  │  56px
 ├────────────────────────────────────┬─────────────────────┤
-│                                    │  STOCKFISH          │
-│                                    │  ●●●○ thinking      │
-│                                    │  ─────────────────  │
-│                                    │   1. e4      e5     │
-│         [ canvas ]                 │   2. Nf3     Nc6    │
-│                                    │   3. Bb5     a6     │
-│                                    │   4. Ba4  ▸         │
+│                                    │ STOCKFISH  thinking │
+│                                    │ level 4 · club ●●●○ │
+│                                    │ ♟ ♟                 │
+│                                    ├─────────────────────┤
+│                                    │  1. e4      e5      │
+│         [ canvas ]                 │  2. Nf3     Nc6     │
+│                                    │  3. Bb5   ▸         │
 │                                    │                     │
-│                                    │  ─────────────────  │
-│                                    │  YOU                │
-├────────────────────────────────────┤  ─────────────────  │
-│  ▸ Nf3_                            │  ↶ take back        │
-│    Nf3  Nf6  Nc3                   │  ⇄ flip             │
-├────────────────────────────────────┤  ⬒ new game         │
+│                                    ├─────────────────────┤
+│                                    │ ♞ ♝            +1   │
+│                                    │ YOU                 │
+│                                    │ playing white  4:58 │
+├────────────────────────────────────┼─────────────────────┤
+│  ▸ Nf3_                            │ LEVEL     4 · club  │
+│    Nf3  Nf6  Nc3                   │ ▰▰▰▰▱▱▱▱            │
+│                                    ├─────────────────────┤
+│                                    │ Take back    Flip   │
+│                                    │ New game   Settings │
 └────────────────────────────────────┴─────────────────────┘
                                           320px fixed
 ```
 
 Board fills the left column, square, capped at 720px. Notation field directly beneath, full column width. Right rail fixed at 320px.
+
+**The rail is one instrument, not a stack of cards.** A single `.vx-panel`
+divided by hairlines, so the extrusion reads once at the scale of a real object
+instead of once per card, where it only looks like noise.
+
+**The two players bracket the transcript.** Stockfish above, you below, each
+carrying their own name, the material they have taken, their advantage, and a
+clock slot. Only the material mirrors — it sits against the transcript that
+records the capturing — because both names still read before their own detail
+line.
+
+**Status belongs to the player it describes.** "Thinking" and the depth
+indicator are things Stockfish is doing; "your move" is addressed to exactly one
+of the two names on screen. There is no separate status bar. The side to move
+carries the lit surface, and the status text beside it says the same thing in
+words, so turn state is never colour alone.
+
+The one message belonging to neither player — history browsing, engine failure —
+gets a single line above the human row that collapses to nothing when silent.
 
 ### Tablet (640–1023px)
 
@@ -146,7 +180,12 @@ The signature element. Treat it accordingly.
 └──────────────────────────────────────────────────┘
 ```
 
-- Caret is a solid block, not a line. Blinks at 530ms. It is drawn by the app, not the browser: the native caret is hidden and the buffer is painted into an overlay, because the field also renders the ghost completion inline on the same text run.
+- The field is a **well**: shadowed top edge, lit bottom edge, `--voxel-well`
+  floor. It is the one surface you push into rather than press on.
+- Caret is a solid block, not a line. Blinks at 530ms. It is drawn by the app, not the browser: the native caret is hidden and the buffer is painted into an overlay, because the field also renders the ghost completion inline on the same text run. It renders **only while the field has focus** — a caret blinking in an unfocused field claims you can type there, and since `clip-path` crops the native outline the caret and the focus ring are the only things marking focus.
+- The candidate row is always live. With an empty buffer it lists the legal
+  moves dimmed, so the field is a readout of what you can play rather than an
+  input that waits to be filled.
 - The prefix already matched renders in `--text`; the remainder of each candidate renders in `--text-faint`, so the user sees the completion inline.
 - Candidate row shows up to 8, then `+N more`.
 - Exact match: left chevron turns `--accent-bright` and a subtle border glow appears.
@@ -166,20 +205,30 @@ A real `<ol>`, monospaced, two columns of plies with the move number in `--text-
 
 ## Difficulty picker
 
-Eight rungs as a vertical list, not a slider. Each shows the label and approximate Elo. A slider implies a continuum; the ladder is eight discrete, deliberately tuned configurations.
+Eight rungs, drawn as a ladder: one row of eight cells that fills from the left,
+with the chosen rung carrying the bright edge. A select implies a list of
+unrelated options and a slider implies a continuum; this is eight discrete,
+deliberately tuned configurations that get harder left to right, so the control
+fills the way strength does. The level name and approximate Elo read beside and
+beneath it.
 
-Levels 7 and 8 when unavailable (no cross-origin isolation): dimmed, not hidden, with a single line of explanatory text below the list. Hiding capabilities users cannot access is worse than explaining why.
+Levels 7 and 8 when unavailable (no cross-origin isolation): dithered and
+disabled, not hidden, with the reason appended to the Elo line. Hiding
+capabilities users cannot access is worse than explaining why.
 
 ## Status states
 
-| State | Display |
-|---|---|
-| Loading engine | `preparing engine` with an indeterminate 2px bar |
-| Your turn | `your move` in `--text-dim` |
-| Engine thinking | `thinking` plus a four-dot depth indicator filling with search depth |
-| Premove queued | `2 premoves queued` in `--premove` |
-| Browsing history | `viewing move 12 · press ↓ to return` in `--warning` |
-| Game over | Result banner: `--font-display`, uppercase, letter-spaced, with the reason beneath |
+Each state is shown on the row it belongs to, not in a bar of its own.
+
+| State | Where | Display |
+|---|---|---|
+| Loading engine | Stockfish row | `Preparing` |
+| Engine thinking | Stockfish row | `Thinking` plus a four-dot depth indicator filling with search depth |
+| Your turn | Your row | `Your move`, and your row takes the lit surface |
+| Premove queued | Your row | `2 premoves queued` in `--premove` |
+| Browsing history | System line | `Viewing move 12. Press ↓ to return to the game.` in `--warning` |
+| Engine failure | System line | The error's own message in `--error` |
+| Game over | Below the transcript | Result banner: `--font-display`, uppercase, letter-spaced, with the reason beneath |
 
 ## Copy rules
 
@@ -209,7 +258,7 @@ Specific strings:
 
 Non-negotiable, verified before any milestone is considered done:
 
-- Visible focus ring on every interactive element: 2px `--accent-bright`. `clip-path` crops an outline, so anything wearing the stepped-corner notch draws its focus ring as a 2px **inset** box-shadow instead. Never `outline: none` without a replacement.
+- Visible focus ring on every interactive element: 2px `--accent-bright`. `clip-path` crops an outline, so anything wearing the stepped-corner notch draws its focus ring as a 2px **inset** box-shadow instead. Never `outline: none` without a replacement. A panel must not ring itself because something inside it is focused — on a full-height rail that draws a box around the whole column and drowns out the control the user is actually on.
 - Contrast ≥ 4.5:1 for body text, ≥ 3:1 for large text and UI borders.
 - `prefers-reduced-motion` respected throughout, including DOM transitions.
 - ARIA live region announcing every move, check, and result.

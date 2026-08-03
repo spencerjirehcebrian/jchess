@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import { useGameStore, initialGameState } from '../../src/store'
 import { GameController } from '../../src/store/controller'
-import { StatusBar } from '../../src/ui/StatusBar'
+import { PlayerRow } from '../../src/ui/PlayerRow'
 import { DifficultyPicker } from '../../src/ui/DifficultyPicker'
 import { GameControls } from '../../src/ui/GameControls'
 import { ResultBanner } from '../../src/ui/ResultBanner'
@@ -20,21 +20,29 @@ describe('UI Component Integration Tests', () => {
     useGameStore.setState(() => ({ ...initialGameState }))
   })
 
-  it('renders StatusBar with current turn message', () => {
+  it('addresses turn status to the human player row', () => {
     useGameStore.setState(() => ({ status: { kind: 'human-turn' } }))
-    render(<StatusBar />)
+    render(<PlayerRow side="human" />)
     expect(screen.getByText('Your move')).toBeTruthy()
   })
 
-  it('renders DifficultyPicker and triggers startNewGame on selection', () => {
+  it('reports engine search state on the engine player row', () => {
+    useGameStore.setState(() => ({ status: { kind: 'engine-thinking', startedAt: 0 } }))
+    render(<PlayerRow side="engine" />)
+    expect(screen.getByText('Thinking')).toBeTruthy()
+    // "Your move" belongs to the other side and must not appear on this one.
+    expect(screen.queryByText('Your move')).toBeNull()
+  })
+
+  it('renders the difficulty ladder and starts a new game on a rung', () => {
     const controller = new GameController(useGameStore as any)
     render(<DifficultyPicker controller={controller} />)
 
-    const select = screen.getByLabelText('Engine level') as HTMLSelectElement
-    expect(select).toBeTruthy()
-    fireEvent.change(select, { target: { value: '1' } })
+    const rung = screen.getByLabelText(/^Level 1,/)
+    fireEvent.click(rung)
 
     expect(useGameStore.getState().difficulty).toBe(1)
+    expect(rung.getAttribute('aria-pressed')).toBe('true')
   })
 
   it('renders GameControls and executes action handlers', () => {

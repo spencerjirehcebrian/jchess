@@ -48,9 +48,13 @@ test.describe("Game Controls E2E", () => {
     ).not.toBeVisible();
   });
 
-  test("resizes board via header board size controls", async ({ page }) => {
+  test("resizes board via the size stepper in settings", async ({ page }) => {
     const wrapper = page.locator('canvas[aria-label="Chess board view"]').locator("..");
     await expect(wrapper).toHaveCSS("max-width", "100%");
+
+    // Board size is set once and forgotten, so the stepper lives in settings
+    // rather than holding space in the header.
+    await page.getByRole("button", { name: "Settings" }).click();
 
     const decBtn = page.getByRole("button", { name: "Make the board smaller" });
     await expect(decBtn).toBeVisible();
