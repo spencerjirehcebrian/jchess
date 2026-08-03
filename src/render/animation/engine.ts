@@ -6,12 +6,58 @@ import { SHADOW_REST_OPACITY } from "../pieces";
 import { VoxelDebrisManager } from "./debris";
 import { BoardPhysicsEngine } from "./shake";
 
+/**
+ * A move the player carried out by hand.
+ *
+ * Travel is information — "a piece went from A to B" — and a drag has already
+ * delivered it, so the arc is skipped. Arrival is consequence: a heavy object
+ * met the board, which is just as true when a hand brought it. The piece falls
+ * the last stretch from where it was let go and lands normally.
+ */
+export interface ArrivalParams {
+  /** Where the hand released the piece, in world space. */
+  startWorld: THREE.Vector3;
+  /** The height it was held at. */
+  startY: number;
+  /** Whatever swing the drag left in it, damped out as it lands. */
+  startTilt?: { x: number; z: number } | undefined;
+}
+
+/**
+ * When each part of a landing happens, as a fraction of the animation.
+ *
+ * A flown piece impacts in mid-air and squashes as it settles at the end. A
+ * dropped one has no flight, so the landing and the impact are the same
+ * instant.
+ */
+interface AnimPhases {
+  /** The victim shatters; for an arrival, also when the piece touches down. */
+  impactT: number;
+  /** The squash-and-stretch window opens. */
+  squashT: number;
+  /** The shockwave ring has finished expanding. */
+  ringEndT: number;
+}
+
+const TRAVEL_PHASES: AnimPhases = {
+  impactT: 0.35,
+  squashT: 0.75,
+  ringEndT: 0.95,
+};
+
+const ARRIVAL_PHASES: AnimPhases = {
+  impactT: 0.3,
+  squashT: 0.3,
+  ringEndT: 0.9,
+};
+
 export interface PieceAnimTarget {
   mesh: THREE.Mesh;
   shadowQuad: THREE.Mesh;
   fromSquare: Square;
   toSquare: Square;
   durationMs: number;
+  arrival?: ArrivalParams | undefined;
   isKnight?: boolean | undefined;
   isCapture?: boolean | undefined;
   capturedMesh?: THREE.Mesh | undefined;
@@ -30,6 +76,7 @@ export interface PieceAnimTarget {
 
 interface ActiveAnim {
   target: PieceAnimTarget;
+  phases: AnimPhases;
   startPos: THREE.Vector3;
   endPos: THREE.Vector3;
   rookStartPos?: THREE.Vector3 | undefined;
@@ -52,7 +99,11 @@ export class AnimationEngine {
     boardFlipped: boolean,
     onComplete?: () => void,
   ) {
-    const startPos = squareToWorld(target.fromSquare, boardFlipped);
+    // An arrival starts wherever the hand let go, which is rarely a square
+    // centre and never the origin square.
+    const startPos =
+      target.arrival?.startWorld ??
+      squareToWorld(target.fromSquare, boardFlipped);
     const endPos = squareToWorld(target.toSquare, boardFlipped);
 
     let rookStartPos: THREE.Vector3 | undefined;
@@ -76,6 +127,7 @@ export class AnimationEngine {
 
     this.activeAnims.push({
       target,
+      phases: target.arrival ? ARRIVAL_PHASES : TRAVEL_PHASES,
       startPos,
       endPos,
       rookStartPos,
@@ -105,8 +157,15 @@ export class AnimationEngine {
       const elapsed = now - anim.startTime;
       const rawT = Math.min(1, Math.max(0, elapsed / anim.durationMs));
 
+      const { impactT, squashT, ringEndT } = anim.phases;
+      const arrival = anim.target.arrival;
+
+      // A flown piece eases across the whole duration. A dropped one has only
+      // the fall to cover, and must be at rest by the time it touches down —
+      // otherwise it keeps sliding after it has landed.
+      const glide = arrival ? Math.min(1, rawT / impactT) : rawT;
       // Cubic ease-out: 1 - (1 - t)^3
-      const t = 1 - Math.pow(1 - rawT, 3);
+      const t = 1 - Math.pow(1 - glide, 3);
 
       // Linear XZ interpolate
       const currentX = anim.startPos.x + (anim.endPos.x - anim.startPos.x) * t;
@@ -124,23 +183,40 @@ export class AnimationEngine {
         this.physicsEngine.setMoveTilt(ux, uz, rawT);
       }
 
-      // Parabolic arc for Y lift: Knights jump higher (0.65 vs 0.45)
-      const maxArc = anim.target.isKnight ? 0.65 : 0.45;
-      const arcY = Math.sin(Math.PI * rawT) * maxArc;
+      let heightY: number;
+      if (arrival) {
+        // Gravity, not a hop: it accelerates downward and reaches the board
+        // exactly on the frame the impact fires.
+        const fall = Math.min(1, rawT / impactT);
+        heightY = arrival.startY * (1 - fall * fall);
+      } else {
+        // Parabolic arc for Y lift: Knights jump higher (0.65 vs 0.45)
+        const maxArc = anim.target.isKnight ? 0.65 : 0.45;
+        heightY = Math.sin(Math.PI * rawT) * maxArc;
+      }
 
-      anim.target.mesh.position.set(currentX, arcY, currentZ);
+      anim.target.mesh.position.set(currentX, heightY, currentZ);
       anim.target.mesh.rotation.set(0, 0, 0);
 
-      // Forward lean tilt into move direction
-      if (dist > 0.001) {
+      if (arrival) {
+        // Whatever swing the drag left in the piece settles as it lands, rather
+        // than snapping upright the instant the hand lets go.
+        const tilt = arrival.startTilt;
+        if (tilt) {
+          const settle = 1 - Math.min(1, rawT / impactT);
+          anim.target.mesh.rotation.x = tilt.x * settle;
+          anim.target.mesh.rotation.z = tilt.z * settle;
+        }
+      } else if (dist > 0.001) {
+        // Forward lean tilt into move direction
         const tiltFactor = Math.sin(Math.PI * rawT) * 0.22;
         anim.target.mesh.rotation.x = -uz * tiltFactor;
         anim.target.mesh.rotation.z = ux * tiltFactor;
       }
 
-      // Landing squash & stretch (in final 25% of animation)
-      if (rawT > 0.75) {
-        const landingT = (rawT - 0.75) / 0.25;
+      // Landing squash & stretch (a quarter of the animation from touchdown)
+      if (rawT > squashT) {
+        const landingT = Math.min(1, (rawT - squashT) / 0.25);
         const bounce = Math.sin(Math.PI * landingT) * 0.12;
         anim.target.mesh.scale.y = Math.max(0.7, 1.0 - bounce);
         const xzExpand = 1.0 + bounce * 0.5;
@@ -149,8 +225,8 @@ export class AnimationEngine {
       }
 
       // Shadow quad dynamics: softens and shrinks as piece lifts
-      const shadowScale = Math.max(0.5, 1 - arcY * 0.35);
-      const shadowOpacity = Math.max(0.15, SHADOW_REST_OPACITY - arcY * 0.4);
+      const shadowScale = Math.max(0.5, 1 - heightY * 0.35);
+      const shadowOpacity = Math.max(0.15, SHADOW_REST_OPACITY - heightY * 0.4);
       anim.target.shadowQuad.position.set(currentX, 0.01, currentZ);
       anim.target.shadowQuad.scale.set(shadowScale, shadowScale, shadowScale);
       (anim.target.shadowQuad.material as THREE.MeshBasicMaterial).opacity = shadowOpacity;
@@ -170,9 +246,9 @@ export class AnimationEngine {
         anim.target.rookShadowQuad.position.set(rookX, 0.01, rookZ);
       }
 
-      // Handle Violent Captured Piece physics & explosive voxel breakup (impact hit around rawT=0.35)
+      // Handle Violent Captured Piece physics & explosive voxel breakup
       if (anim.target.isCapture) {
-        if (rawT >= 0.35 && !anim.hasExploded) {
+        if (rawT >= impactT && !anim.hasExploded) {
           anim.hasExploded = true;
 
           // Trigger Violent Board Shake on Capture Impact
@@ -192,8 +268,8 @@ export class AnimationEngine {
           );
         }
 
-        if (anim.target.capturedMesh && rawT >= 0.35) {
-          const tumbleT = (rawT - 0.35) / 0.65;
+        if (anim.target.capturedMesh && rawT >= impactT) {
+          const tumbleT = (rawT - impactT) / (1 - impactT);
           const capY = -tumbleT * 1.5;
           const capScale = Math.max(0, 1 - tumbleT * 1.2);
 
@@ -213,8 +289,8 @@ export class AnimationEngine {
 
         // Impact Ring visual shockwave burst effect on target square
         if (anim.target.impactRing) {
-          if (rawT >= 0.35 && rawT <= 0.95) {
-            const ringT = (rawT - 0.35) / 0.6;
+          if (rawT >= impactT && rawT <= ringEndT) {
+            const ringT = (rawT - impactT) / (ringEndT - impactT);
             const ringScale = 0.2 + ringT * 1.8;
             const ringOpacity = Math.max(0, 1.0 - ringT);
 
@@ -227,18 +303,25 @@ export class AnimationEngine {
         }
       }
 
+      // Impact recoil & crisp landing thud, at the moment the piece touches
+      // down. A flown piece lands as the animation ends; a dropped one lands at
+      // impact and then stands there while its victim finishes falling apart,
+      // so this cannot simply fire on completion.
+      const landT = arrival ? impactT : 1;
+      if (!anim.hasLanded && rawT >= landT) {
+        anim.hasLanded = true;
+        this.physicsEngine.triggerImpactRecoil(ux, uz, 0.07);
+        if (!anim.target.isCapture) {
+          // A placed piece is set down deliberately, so it reads a shade
+          // firmer than one that merely arrived.
+          if (arrival) this.physicsEngine.triggerShake(0.45, 180, now);
+          else this.physicsEngine.triggerShake(0.35, 160, now);
+        }
+      }
+
       if (rawT < 1) {
         remaining.push(anim);
       } else {
-        // Apply impact recoil & crisp landing thud shake
-        if (!anim.hasLanded) {
-          anim.hasLanded = true;
-          this.physicsEngine.triggerImpactRecoil(ux, uz, 0.07);
-          if (!anim.target.isCapture) {
-            this.physicsEngine.triggerShake(0.35, 160, now);
-          }
-        }
-
         this.settle(anim);
       }
     }

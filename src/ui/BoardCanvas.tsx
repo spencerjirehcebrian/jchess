@@ -112,7 +112,13 @@ export function BoardCanvas({ controller }: BoardCanvasProps) {
           ? generatePremoves(premoveBase, from)
           : legalMovesFrom(currentPos, from);
 
-      return { currentState, movingColor, isOwnPiece, candidatesFrom };
+      return {
+        currentState,
+        movingColor,
+        inPremoveMode,
+        isOwnPiece,
+        candidatesFrom,
+      };
     };
 
     // A square holding one of your own pieces can only ever be a selection,
@@ -130,9 +136,9 @@ export function BoardCanvas({ controller }: BoardCanvasProps) {
     };
 
     renderer.onDrop = (from, to) => {
-      if (!controller || to === null) return false;
+      if (!controller) return "returned";
 
-      const { movingColor, candidatesFrom } = readContext();
+      const { movingColor, inPremoveMode, candidatesFrom } = readContext();
       const target = selectPointerTarget(candidatesFrom(from), to);
 
       if (target.kind === "promotion") {
@@ -142,14 +148,18 @@ export function BoardCanvas({ controller }: BoardCanvasProps) {
           color: movingColor,
           anchor: renderer.squareToScreen(to),
         });
-        // Nothing is committed until the piece is chosen, so the dragged piece
-        // goes home and the picker takes over.
-        return false;
+        // The piece stays in the air over the square while the picker is open,
+        // so choosing finishes the motion the hand started instead of sending
+        // it home and flying it back out.
+        return "pending";
       }
 
-      if (target.kind === "none") return false;
+      if (target.kind === "none") return "returned";
+      if (!controller.makeMove(target.move)) return "returned";
 
-      return controller.makeMove(target.move);
+      // A premove is accepted without changing the board, so the piece belongs
+      // back where the position still has it — and nothing is landing yet.
+      return inPremoveMode ? "returned" : "moved";
     };
 
     // Picking a piece up selects it, so the destination dots are lit while you
@@ -227,17 +237,23 @@ export function BoardCanvas({ controller }: BoardCanvasProps) {
       if (!pendingPromotion || !controller) return;
       const { from, to } = pendingPromotion;
       setPendingPromotion(null);
-      if (
-        !controller.makeMove({ from, to, promotion: role })
-      ) {
-        controller.setSelectedSquare(null);
-      }
+
+      // Routed through the renderer so that a piece still held in the air over
+      // the square lands as the promoted piece, rather than being sent home
+      // and flown back out. Plain clicks have no held piece and pass straight
+      // through.
+      const renderer = rendererRef.current;
+      const commit = () => controller.makeMove({ from, to, promotion: role });
+
+      if (renderer) renderer.resolvePendingDrop(commit);
+      else if (!commit()) controller.setSelectedSquare(null);
     },
     [pendingPromotion, controller],
   );
 
   const cancelPromotion = useCallback(() => {
     setPendingPromotion(null);
+    rendererRef.current?.cancelPendingDrop();
     controller?.setSelectedSquare(null);
   }, [controller]);
 

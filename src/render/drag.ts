@@ -13,6 +13,14 @@ export const DRAG_LIFT = 0.6;
 /** Pointer travel, in CSS pixels, before a press becomes a drag. */
 export const DRAG_THRESHOLD_PX = 4;
 
+/**
+ * How long a released piece takes to land. Both give roughly a 90ms fall — the
+ * capture case runs longer only so the shattered piece has room to finish
+ * falling apart after the mover has already come to rest.
+ */
+export const DROP_QUIET_MS = 200;
+export const DROP_CAPTURE_MS = 300;
+
 const LIFT_RATE = 18; // how fast the piece rises into the grip, per second
 const SWING_STIFFNESS = 150;
 const SWING_DAMPING = 11; // under critical, so it swings once and settles
@@ -62,6 +70,19 @@ export class PieceDragController {
 
   getFromSquare(): Square | null {
     return this.fromSquare;
+  }
+
+  /**
+   * The pose the hand let go at. The landing animation starts from here, so a
+   * released piece falls from where it actually was rather than teleporting to
+   * the square centre.
+   */
+  getPose(): { world: THREE.Vector3; y: number; tilt: { x: number; z: number } } {
+    return {
+      world: new THREE.Vector3(this.worldX, 0, this.worldZ),
+      y: this.lift,
+      tilt: { x: this.swingPitch, z: this.swingRoll },
+    };
   }
 
   begin(piece: RenderedPiece, from: Square, world: THREE.Vector3) {

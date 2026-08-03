@@ -66,7 +66,28 @@ Two deliberate departures:
   The spec asks for an enlarged, softened shadow, but the move-arc animation
   already shrinks and dims (`animation/engine.ts`), and a dragged piece and a
   moving piece should read the same way. Consistency won.
-- **A drag that commits a move skips the flight animation.** The player has
-  already carried the piece to its square; replaying the arc would drag it back
-  to the origin first. Moves the player did not make by hand — engine replies,
-  premove drains, notation entry — still animate.
+- **A drag skips the flight but keeps the landing.** See below.
+
+## Travel and Arrival
+
+The move animation does two jobs, and they are not interchangeable.
+
+**Travel** — the arc, the lean, the lag — is *information*: "a piece went from A
+to B." It exists to tell you about a move you did not make. A drag has already
+delivered that, so replaying the arc reads as a rewind, and `arrival` mode skips
+it.
+
+**Arrival** — the landing squash, the thud, the board shake, and on a capture the
+debris, the ring and the victim's tumble — is *consequence*. It happens because a
+heavy object met the board, which is equally true when a hand carried it. It
+fires either way.
+
+Both run through the same `animateMove` in `render/animation/engine.ts`,
+separated only by an `AnimPhases` object saying when the piece touches down.
+Travel impacts in mid-flight and settles at the end; an arrival lands and impacts
+on the same frame, then stands there while its victim finishes falling apart.
+Do not add a second animation path for drops — the shared timeline is what
+guarantees a capture you made by hand shatters exactly like one you watched.
+
+An earlier revision suppressed the whole animation on a drag. Dragged captures
+were silent, and released pieces teleported from the hand to the square centre.

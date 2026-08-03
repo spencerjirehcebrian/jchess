@@ -5,12 +5,32 @@ import { meshBoard } from "./voxel/mesher";
 import { PieceManager } from "./pieces";
 import { OverlayManager } from "./overlay";
 import { raycastToBoard, raycastToSquare, squareToWorld } from "./picking";
-import { PieceDragController, DRAG_THRESHOLD_PX } from "./drag";
+import {
+  PieceDragController,
+  DRAG_THRESHOLD_PX,
+  DROP_QUIET_MS,
+  DROP_CAPTURE_MS,
+} from "./drag";
 import { AnimationEngine, PieceAnimTarget } from "./animation/engine";
 import { Square } from "../core/types";
 import { Store } from "../store";
 import { positionAfter, legalMovesFrom } from "../core/rules";
 import { premoveDestinations, hypotheticalPosition } from "../core/premove";
+
+/**
+ * What a released piece should do next.
+ *
+ * "The move was accepted" and "the board changed" are different questions: a
+ * premove is accepted and queued without moving anything, so the piece has to
+ * go back where the position still says it is.
+ */
+export type DropOutcome =
+  /** The position changed. Land on the destination. */
+  | "moved"
+  /** Waiting on the promotion picker. Stay where the hand let go. */
+  | "pending"
+  /** Refused, or queued as a premove. Fall back onto the origin square. */
+  | "returned";
 
 export class Renderer {
   private canvas: HTMLCanvasElement;
@@ -44,10 +64,18 @@ export class Renderer {
   private lastFrameTime = 0;
 
   /**
-   * Set when a move arrives that the player has already made with their hand.
-   * Flying the piece from its origin would rewind the drag they just finished.
+   * The pose a dragged piece was released at, held until the move it produced
+   * comes back through the store. Flying that piece from its origin would
+   * rewind the drag the player just finished, so it falls from here instead.
+   *
+   * Also survives an open promotion picker, which is why it is a pose rather
+   * than a flag: the piece hangs where it was dropped until the choice is made.
    */
-  private skipNextMoveAnimation = false;
+  private pendingDrop: {
+    from: Square;
+    to: Square;
+    pose: { world: THREE.Vector3; y: number; tilt: { x: number; z: number } };
+  } | null = null;
 
   public onSquarePointerDown?: (square: Square, event: PointerEvent) => void;
   public onSquarePointerUp?: (square: Square, event: PointerEvent) => void;
@@ -57,8 +85,8 @@ export class Renderer {
   public canDragFrom?: (square: Square) => boolean;
   /** Answers whether dropping on `to` would be a move. */
   public isDropTarget?: (from: Square, to: Square) => boolean;
-  /** Commits the drop. Returns false when the move was refused. */
-  public onDrop?: (from: Square, to: Square | null) => boolean;
+  /** Commits the drop. See {@link DropOutcome}. */
+  public onDrop?: (from: Square, to: Square) => DropOutcome;
   public onDragStateChange?: (from: Square | null) => void;
 
   constructor(canvas: HTMLCanvasElement, theme?: Theme) {
@@ -227,10 +255,19 @@ export class Renderer {
         currentCursor === prevCursor + 1 &&
         historyToRender.length > 0;
 
-      // Consumed by whichever branch handles this change, so a drag that was
-      // refused cannot leave the flag armed for the engine's next reply.
-      const skipAnimation = positionChanged && this.skipNextMoveAnimation;
-      if (positionChanged) this.skipNextMoveAnimation = false;
+      // A drop pose only ever belongs to the move that drop produced. Anything
+      // else reaching the board first — an engine reply, a takeback, a premove
+      // drain — discards it, so a dropped piece's landing can never be grafted
+      // onto somebody else's move.
+      if (positionChanged && this.pendingDrop) {
+        const last = historyToRender[historyToRender.length - 1];
+        const isOurs =
+          isLiveSingleMove &&
+          last &&
+          last.move.from === this.pendingDrop.from &&
+          last.move.to === this.pendingDrop.to;
+        if (!isOurs) this.pendingDrop = null;
+      }
 
       if (!positionChanged) {
         // Overlay-only update: leave any in-flight animation alone.
@@ -301,23 +338,44 @@ export class Renderer {
           rookTo,
         });
 
-        if (applied && skipAnimation) {
-          // The player carried this piece to its square themselves. Settle it
-          // where it now stands instead of flying it back to replay the move.
-          this.pieceManager.syncPosition(currentPos, this.boardFlipped);
-        } else if (applied) {
+        if (applied) {
           const { moved, captured, rook } = applied;
+
+          // If this is the move the player just dropped, it does not fly — it
+          // falls the last stretch from the hand and lands. Everything after
+          // touchdown is identical either way, which is the whole point of
+          // sharing this path: a capture you made yourself still shatters.
+          const drop =
+            this.pendingDrop &&
+            this.pendingDrop.from === lastMove.from &&
+            this.pendingDrop.to === lastMove.to
+              ? this.pendingDrop
+              : null;
+          this.pendingDrop = null;
 
           const animTarget: PieceAnimTarget = {
             mesh: moved.mesh,
             shadowQuad: moved.shadowQuad,
             fromSquare: lastMove.from,
             toSquare: lastMove.to,
-            durationMs: 220,
+            durationMs: drop
+              ? captured
+                ? DROP_CAPTURE_MS
+                : DROP_QUIET_MS
+              : 220,
             isKnight,
             isCapture: !!captured,
             isCastle,
             isPromotion: !!lastMove.promotion,
+            ...(drop
+              ? {
+                  arrival: {
+                    startWorld: drop.pose.world,
+                    startY: drop.pose.y,
+                    startTilt: drop.pose.tilt,
+                  },
+                }
+              : {}),
           };
 
           if (captured) {
@@ -729,34 +787,97 @@ export class Renderer {
   }
 
   private finishDrag(to: Square | null): void {
+    const pose = this.dragController.getPose();
     const held = this.dragController.end();
     this.canvas.style.cursor = "";
     this.overlayManager.setHoverSquare(null, this.boardFlipped);
 
     if (!held) return;
 
-    const committed =
-      to !== null && to !== held.from ? (this.onDrop?.(held.from, to) ?? false) : false;
+    // Armed before the drop resolves: makeMove writes to the store
+    // synchronously, so the position update can come back inside this call and
+    // must already be able to see where the piece was let go.
+    this.pendingDrop = { from: held.from, to: to ?? held.from, pose };
 
-    if (committed) {
-      // The player has already carried the piece there; replaying the flight
-      // would drag it back to where it started first.
-      this.skipNextMoveAnimation = true;
-    }
+    const outcome =
+      to !== null && to !== held.from
+        ? (this.onDrop?.(held.from, to) ?? "returned")
+        : "returned";
 
-    // Either way the mesh returns to the board: onto its new square once the
-    // store update lands, or back onto the one it came from.
-    this.pieceManager.releasePiece(this.boardFlipped);
+    // The hand is off the piece either way; the animation owns it from here.
+    // releasePiece() would settle it flat, which is the teleport this replaces.
+    this.pieceManager.holdPiece(null);
+
+    if (outcome === "returned") this.returnDroppedPiece();
+    // "pending" leaves the piece hanging where it was released, and the pose
+    // armed, until the promotion picker resolves.
+
     this.onDragStateChange?.(null);
     this.requestRender();
   }
 
+  /**
+   * Falls the released piece back onto the square it came from. Same machinery
+   * as landing on a destination — the destination is just the origin.
+   */
+  private returnDroppedPiece(): void {
+    const pending = this.pendingDrop;
+    this.pendingDrop = null;
+    if (!pending) return;
+
+    const piece = this.pieceManager.getPieceAt(pending.from);
+    if (!piece) return;
+
+    this.animEngine.animateMove(
+      {
+        mesh: piece.mesh,
+        shadowQuad: piece.shadowQuad,
+        fromSquare: pending.from,
+        toSquare: pending.from,
+        durationMs: DROP_QUIET_MS,
+        arrival: {
+          startWorld: pending.pose.world,
+          startY: pending.pose.y,
+          startTilt: pending.pose.tilt,
+        },
+      },
+      this.boardFlipped,
+    );
+    this.requestRender();
+  }
+
+  /**
+   * Resolves a drop that was waiting on the promotion picker. `commit` reports
+   * whether it changed the position; if it did not, the piece goes home.
+   */
+  public resolvePendingDrop(commit: () => boolean): void {
+    if (!this.pendingDrop) {
+      commit();
+      return;
+    }
+    const pending = this.pendingDrop;
+    if (!commit()) {
+      this.pendingDrop = pending;
+      this.returnDroppedPiece();
+    }
+  }
+
+  /** Abandons a drop waiting on the picker; the piece falls back home. */
+  public cancelPendingDrop(): void {
+    this.returnDroppedPiece();
+  }
+
   private cancelDrag(): void {
     if (!this.dragController.isDragging()) return;
-    this.dragController.end();
+    const pose = this.dragController.getPose();
+    const held = this.dragController.end();
     this.canvas.style.cursor = "";
     this.overlayManager.setHoverSquare(null, this.boardFlipped);
-    this.pieceManager.releasePiece(this.boardFlipped);
+    this.pieceManager.holdPiece(null);
+    if (held) {
+      this.pendingDrop = { from: held.from, to: held.from, pose };
+      this.returnDroppedPiece();
+    }
     this.onDragStateChange?.(null);
     this.requestRender();
   }

@@ -139,6 +139,125 @@ describe("AnimationEngine unit tests", () => {
     expect(engine.isAnimating()).toBe(false);
   });
 
+  /*
+   * A move the player made by hand does not fly — the drag already showed the
+   * travel. It falls the last stretch from where it was let go and lands
+   * normally, because the landing is a consequence of hitting the board rather
+   * than information about the move.
+   */
+  describe("arrival mode", () => {
+    it("falls from the held height and is down by the impact moment", () => {
+      const engine = new AnimationEngine();
+      const mesh = new THREE.Mesh();
+      const shadowQuad = new THREE.Mesh();
+
+      const startT = performance.now();
+      engine.animateMove(
+        {
+          mesh,
+          shadowQuad,
+          fromSquare: 12, // e2
+          toSquare: 28, // e4
+          durationMs: 200,
+          arrival: {
+            startWorld: new THREE.Vector3(0.2, 0, -0.3),
+            startY: 0.6,
+          },
+        },
+        false,
+      );
+
+      // Early in the fall it is still clearly in the air, and below where it
+      // was held — it descends rather than arcing up like a flown piece.
+      engine.update(startT + 20);
+      expect(mesh.position.y).toBeGreaterThan(0);
+      expect(mesh.position.y).toBeLessThan(0.6);
+
+      // impactT is 0.3 of the duration, so it is on the board by 60ms.
+      engine.update(startT + 62);
+      expect(mesh.position.y).toBeCloseTo(0, 2);
+
+      // And it stays down while the rest of the animation plays out.
+      engine.update(startT + 120);
+      expect(mesh.position.y).toBeCloseTo(0, 2);
+    });
+
+    it("settles the drag's swing out instead of snapping upright", () => {
+      const engine = new AnimationEngine();
+      const mesh = new THREE.Mesh();
+      const shadowQuad = new THREE.Mesh();
+
+      const startT = performance.now();
+      engine.animateMove(
+        {
+          mesh,
+          shadowQuad,
+          fromSquare: 12,
+          toSquare: 28,
+          durationMs: 200,
+          arrival: {
+            startWorld: new THREE.Vector3(0, 0, 0),
+            startY: 0.6,
+            startTilt: { x: 0.2, z: -0.3 },
+          },
+        },
+        false,
+      );
+
+      engine.update(startT + 20);
+      expect(Math.abs(mesh.rotation.z)).toBeGreaterThan(0);
+
+      engine.update(startT + 62);
+      expect(mesh.rotation.x).toBeCloseTo(0, 2);
+      expect(mesh.rotation.z).toBeCloseTo(0, 2);
+    });
+
+    it("still shatters the piece it landed on", () => {
+      const engine = new AnimationEngine();
+      const mesh = new THREE.Mesh();
+      const shadowQuad = new THREE.Mesh();
+      const capturedMesh = new THREE.Mesh();
+      const capturedShadowQuad = new THREE.Mesh();
+
+      let onCompleteCalled = false;
+      const startT = performance.now();
+
+      engine.animateMove(
+        {
+          mesh,
+          shadowQuad,
+          fromSquare: 28,
+          toSquare: 35,
+          durationMs: 300,
+          isCapture: true,
+          capturedMesh,
+          capturedShadowQuad,
+          arrival: {
+            startWorld: new THREE.Vector3(0.1, 0, 0.1),
+            startY: 0.6,
+          },
+        },
+        false,
+        () => {
+          onCompleteCalled = true;
+        },
+      );
+
+      // Nothing has been hit yet on the way down.
+      engine.update(startT + 20);
+      expect(capturedMesh.position.y).toBe(0);
+
+      // Past impact (0.3 x 300ms = 90ms) the victim is falling apart and the
+      // board has been shaken — a dragged capture is not a silent one.
+      engine.update(startT + 120);
+      expect(capturedMesh.position.y).toBeLessThan(0);
+      expect(engine.physicsEngine.isActive()).toBe(true);
+
+      engine.update(startT + 320);
+      expect(onCompleteCalled).toBe(true);
+    });
+  });
+
   it("immediately cancels active animations", () => {
     const engine = new AnimationEngine();
     const mesh = new THREE.Mesh();
