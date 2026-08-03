@@ -74,6 +74,17 @@ Render-on-demand: a `dirty` flag plus rAF, no idle frames. `Renderer.attach()` d
 - React integration tests must wrap async engine init in `act()`; `App` kicks off `engine.init().then(startNewGame)` on mount.
 - `docs/11-testing.md` lists the required fixtures and per-layer coverage targets. Weight tests toward `core/`, `store/controller`, and animation cancellation; the docs explicitly discourage renderer/UI coverage chasing.
 
+## Git
+
+Commit and push directly to `main`. This is a solo repository with no branch
+protection and no review requirement — do not open a branch and a pull request
+for ordinary work unless asked for one specifically. The default caution about
+committing to the default branch does not apply here.
+
+Still ask before pushing anything that is not ordinary work: history rewrites,
+force pushes, tag or release operations, or anything touching a remote other
+than `origin`.
+
 ## docs/ and DECISIONS.md
 
 `docs/` is the pre-implementation spec, written as instructions to the implementing agent. It remains the reference for intent, but the tree has since diverged: there is no `src/input/` (pointer handling lives in `BoardCanvas.tsx`, SAN entry in `NotationInput.tsx`), persistence is `src/storage/index.ts` rather than `src/persistence/db.ts`, animation is `src/render/animation/{engine,debris,shake}.ts`, and `src/audio/` is undocumented there. Read the docs for rules and invariants, the code for structure.
