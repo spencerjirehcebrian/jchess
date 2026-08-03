@@ -1,13 +1,13 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import './styles/global.css'
-import { DevConsole } from './ui/DevConsole'
+import { App } from './ui/App'
 
 const rootEl = document.getElementById('root')
 if (rootEl) {
   ReactDOM.createRoot(rootEl).render(
     <React.StrictMode>
-      <DevConsole />
+      <App />
     </React.StrictMode>
   )
 }
