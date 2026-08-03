@@ -4,6 +4,7 @@ import { createScene } from './scene'
 import { PieceManager } from './pieces'
 import { OverlayManager } from './overlay'
 import { raycastToSquare } from './picking'
+import { AnimationEngine } from './animation/engine'
 import { Square } from '../core/types'
 import { Store } from '../store'
 import { positionAfter, legalMovesFrom } from '../core/rules'
@@ -16,6 +17,7 @@ export class Renderer {
   private scene: THREE.Scene
   private pieceManager: PieceManager
   private overlayManager: OverlayManager
+  private animEngine = new AnimationEngine()
   private raycaster = new THREE.Raycaster()
 
   private dirty = true
@@ -147,9 +149,15 @@ export class Renderer {
 
   private frame(_t: number): void {
     this.rafHandle = null
-    if (this.dirty) {
+    const isAnimating = this.animEngine.update()
+
+    if (this.dirty || isAnimating) {
       this.webglRenderer.render(this.scene, this.camera)
       this.dirty = false
+    }
+
+    if (isAnimating) {
+      this.requestRender()
     }
   }
 
@@ -176,7 +184,8 @@ export class Renderer {
   }
 
   cancelAllAnimations(): void {
-    // Animation engine integration in M4
+    this.animEngine.cancelAll()
+    this.requestRender()
   }
 
   setTheme(theme: Theme): void {
