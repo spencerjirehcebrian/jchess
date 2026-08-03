@@ -10,11 +10,10 @@ import { NotationInput } from "./NotationInput";
 import { MoveList } from "./MoveList";
 import { DifficultyPicker } from "./DifficultyPicker";
 import { GameControls } from "./GameControls";
-import { StatusBar } from "./StatusBar";
+import { PlayerRow } from "./PlayerRow";
+import { SystemLine } from "./SystemLine";
 import { ResultBanner } from "./ResultBanner";
 import { SettingsPanel } from "./SettingsPanel";
-import { BoardSizeControls } from "./BoardSizeControls";
-import { CapturedTray } from "./CapturedTray";
 
 export function App() {
   const state = useGameStore();
@@ -70,41 +69,25 @@ export function App() {
           flexShrink: 0,
         }}
       >
-        <div
+        {/*
+          The wordmark alone. Level used to sit beside it and now reads twice
+          in the rail — on the engine's own row and on the ladder — so a third
+          copy here was only filling space.
+        */}
+        <h1
           style={{
-            display: "flex",
-            alignItems: "baseline",
-            gap: "var(--sp-4)",
+            fontFamily: "var(--font-display)",
+            fontSize: "1.0625rem",
+            fontWeight: 700,
+            fontStretch: "120%",
+            letterSpacing: "0.22em",
+            textTransform: "uppercase",
+            color: "var(--text)",
           }}
         >
-          <h1
-            style={{
-              fontFamily: "var(--font-display)",
-              fontSize: "1.0625rem",
-              fontWeight: 700,
-              fontStretch: "120%",
-              letterSpacing: "0.22em",
-              textTransform: "uppercase",
-              color: "var(--text)",
-            }}
-          >
-            jchess
-          </h1>
-          <span
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: "var(--size-sm)",
-              color: "var(--text-faint)",
-            }}
-          >
-            level {state.difficulty}
-          </span>
-        </div>
+          jchess
+        </h1>
 
-        {/* Hidden on small screens, where the board is full-width regardless. */}
-        <div className="app-header-size">
-          <BoardSizeControls controller={controller} />
-        </div>
       </header>
 
       {/* Main Layout */}
@@ -143,18 +126,24 @@ export function App() {
           <NotationInput controller={controller} />
         </div>
 
-        {/* Right Rail: Instrumentation */}
+        {/*
+          One instrument, not a stack of cards. The two players bracket the
+          transcript and the dividers are hairlines, so the extrusion reads
+          once at the scale of a real object instead of four times at card
+          scale, where it only looked like noise.
+        */}
         <div
-          className="app-rail"
+          className="app-rail vx-panel"
           style={{
             display: "flex",
             flexDirection: "column",
-            gap: "var(--sp-3)",
             height: "100%",
             overflow: "hidden",
           }}
         >
-          <StatusBar />
+          <PlayerRow side="engine" />
+
+          <MoveList controller={controller} />
 
           {state.status.kind === "over" && (
             <ResultBanner
@@ -163,16 +152,25 @@ export function App() {
             />
           )}
 
-          <MoveList controller={controller} />
+          <SystemLine />
 
-          <CapturedTray />
+          <PlayerRow side="human" />
 
-          <DifficultyPicker controller={controller} />
+          <div style={{ borderTop: "1px solid var(--border)" }}>
+            <DifficultyPicker controller={controller} />
+          </div>
 
-          <GameControls
-            controller={controller}
-            onOpenSettings={() => setIsSettingsOpen(true)}
-          />
+          <div
+            style={{
+              borderTop: "1px solid var(--border)",
+              padding: "var(--sp-3)",
+            }}
+          >
+            <GameControls
+              controller={controller}
+              onOpenSettings={() => setIsSettingsOpen(true)}
+            />
+          </div>
         </div>
       </main>
 

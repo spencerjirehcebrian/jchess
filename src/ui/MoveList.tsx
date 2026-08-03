@@ -37,21 +37,33 @@ export function MoveList({ controller }: MoveListProps) {
   return (
     <div
       ref={listRef}
-      className="vx-panel app-move-list"
+      className="app-move-list"
+      aria-label="Move list"
+      // Sizing lives in .app-move-list, not here. An inline min-height cannot
+      // be overridden by the mobile media query, and set to 0 it collapsed the
+      // transcript to a sliver once the rail stopped dividing a fixed height.
       style={{
-        flex: 1,
-        minHeight: 0,
         overflowY: "auto",
         fontFamily: "var(--font-mono)",
         fontSize: "var(--size-sm)",
         padding: "var(--sp-3)",
+        // The transcript is the well of the instrument: the two players sit on
+        // the raised faces above and below it, and the record sinks between.
+        background: "var(--voxel-well)",
+        borderTop: "1px solid var(--border)",
+        borderBottom: "1px solid var(--border)",
       }}
     >
       {pairs.length === 0 ? (
+        // Centred in the well rather than pinned to its top corner, so the
+        // empty transcript reads as a space waiting to be filled instead of
+        // one line of text abandoned above a void.
         <div
           style={{
+            height: "100%",
             display: "flex",
             alignItems: "center",
+            justifyContent: "center",
             gap: "var(--sp-2)",
             color: "var(--text-faint)",
           }}

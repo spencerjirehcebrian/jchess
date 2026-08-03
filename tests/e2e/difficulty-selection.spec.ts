@@ -5,13 +5,15 @@ test.describe('Difficulty Selection E2E', () => {
     await page.goto('/');
     await page.waitForTimeout(500);
 
-    const select = page.getByLabel('Engine Level');
-    await expect(select).toBeVisible();
+    const ladder = page.getByRole('group', { name: 'Engine level' });
+    await expect(ladder).toBeVisible();
 
-    await select.selectOption('1');
-    await expect(page.locator('header')).toContainText('level 1');
+    // The ladder is eight rungs; picking one starts a new game at that level
+    // and the engine's own row reports it.
+    await ladder.getByLabel(/^Level 1,/).click();
+    await expect(page.getByText('level 1 ·')).toBeVisible();
 
-    await select.selectOption('3');
-    await expect(page.locator('header')).toContainText('level 3');
+    await ladder.getByLabel(/^Level 3,/).click();
+    await expect(page.getByText('level 3 ·')).toBeVisible();
   });
 });

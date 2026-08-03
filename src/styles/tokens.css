@@ -8,9 +8,9 @@
    */
 
   /* Surface — warm lacquer ramp */
-  --bg: #100c0a;
-  --surface: #1a1512;
-  --surface-raised: #241d18;
+  --bg: #090605;
+  --surface: #17120f;
+  --surface-raised: #302722;
   --border: #33291f;
   --border-strong: #4a3b2a;
 
@@ -39,10 +39,11 @@
    * in shadow. Recomputed per theme from the same multipliers the mesher bakes
    * into the geometry, so DOM and canvas are lit by one imaginary sun.
    */
-  --voxel-face: #1a1511;
-  --voxel-top: #241d18;
-  --voxel-side: #1d1713;
-  --voxel-under: #14100d;
+  --voxel-face: #231c18;
+  --voxel-top: #302722;
+  --voxel-side: #27201c;
+  --voxel-under: #1a1513;
+  --voxel-well: #16120f; /* material x 0.45 — the floor of a recess */
   --voxel-accent-face: #90741c;
   --voxel-accent-top: #c9a227;
   --voxel-accent-under: #6e5915;

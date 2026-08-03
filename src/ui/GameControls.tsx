@@ -34,11 +34,13 @@ export function GameControls({
         Flip board
       </button>
 
-      <button
-        className="vx-button"
-        data-variant="primary"
-        onClick={() => controller?.startNewGame()}
-      >
+      {/*
+        Not the primary. New game discards the game in progress, and dressing
+        the most destructive control as the loudest thing in the rail pointed
+        attention away from the board. Gold now marks only where the game is:
+        the chosen rung on the ladder, and a matched move in the notation field.
+      */}
+      <button className="vx-button" onClick={() => controller?.startNewGame()}>
         New game
       </button>
 
