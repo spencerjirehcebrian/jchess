@@ -4,6 +4,19 @@ import { Position, toSan, toUci } from "./rules";
 export interface NotationState {
   buffer: string;
   candidates: Move[];
+  /**
+   * The candidates' SAN, parallel to `candidates` and rendered against the very
+   * position they were matched on.
+   *
+   * Callers must display these rather than calling `toSan` again. `makeSan`
+   * disambiguates by looking for rival pieces of `pos.turn`, so rendering a
+   * candidate against a position with the other side to move silently drops the
+   * disambiguating letter — two knights that both reach f3 both come back as
+   * `Nf3`. That is exactly what happens in premove mode, where the candidates
+   * are generated on a turn-swapped board. Handing back the strings computed
+   * here makes the mismatch unrepresentable.
+   */
+  candidateSans: string[];
   ambiguous: boolean;
   exactMatch: Move | null;
 }
@@ -41,16 +54,18 @@ export function matchPrefix(
     return {
       buffer,
       candidates: legals,
+      candidateSans: legals.map((m) => toSan(pos, m)),
       ambiguous: false,
       exactMatch: null,
     };
   }
 
   const variations = normalizeSanInput(cleanBuffer);
-  const candidateMap = new Map<string, Move>();
+  const candidateMap = new Map<string, { move: Move; san: string }>();
 
   for (const m of legals) {
-    const sanStr = toSan(pos, m).replace(/[+#]/g, "");
+    const san = toSan(pos, m);
+    const sanStr = san.replace(/[+#]/g, "");
     const uciStr = toUci(m);
     const moveKey = uciStr;
 
@@ -68,28 +83,30 @@ export function matchPrefix(
         uciLower.startsWith(vLower) ||
         sanNoX.startsWith(vNoX)
       ) {
-        candidateMap.set(moveKey, m);
+        candidateMap.set(moveKey, { move: m, san });
       }
     }
   }
 
-  const candidates = Array.from(candidateMap.values());
+  const matched = Array.from(candidateMap.values());
+  const candidates = matched.map((c) => c.move);
+  const candidateSans = matched.map((c) => c.san);
 
   // Check exact match
   let exactMatch: Move | null = null;
-  if (candidates.length === 1) {
-    exactMatch = candidates[0]!;
+  if (matched.length === 1) {
+    exactMatch = matched[0]!.move;
   } else {
     // Check if one candidate exactly matches the typed input
-    for (const m of candidates) {
-      const sanStr = toSan(pos, m).replace(/[+#]/g, "");
-      const uciStr = toUci(m);
+    for (const { move, san } of matched) {
+      const sanStr = san.replace(/[+#]/g, "");
+      const uciStr = toUci(move);
       for (const v of variations) {
         if (
           sanStr.toLowerCase() === v.toLowerCase() ||
           uciStr.toLowerCase() === v.toLowerCase()
         ) {
-          exactMatch = m;
+          exactMatch = move;
           break;
         }
       }
@@ -116,6 +133,7 @@ export function matchPrefix(
   return {
     buffer,
     candidates,
+    candidateSans,
     ambiguous,
     exactMatch,
   };

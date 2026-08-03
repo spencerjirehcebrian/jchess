@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useGameStore } from "../store";
 import { GameController } from "../store/controller";
-import { positionAfter, legalMoves, toSan } from "../core/rules";
+import { positionAfter, legalMoves, toUci } from "../core/rules";
 import { matchPrefix } from "../core/san-parser";
 
 interface NotationInputProps {
@@ -77,9 +77,13 @@ export function NotationInput({ controller }: NotationInputProps) {
     setTimeout(() => setIsShaking(false), 220);
   };
 
-  const candidateSans = notationState.candidates
-    .slice(0, 8)
-    .map((m) => toSan(currentPos, m));
+  // Taken from the parser rather than recomputed. Rendering these against
+  // `currentPos` was wrong in premove mode, where the candidates come from a
+  // turn-swapped board: chessops disambiguates against the side to move, so two
+  // knights that both reached f3 were both offered as "Nf3" — a name that does
+  // not identify either of them, and is ambiguous when typed back.
+  const candidateSans = notationState.candidateSans.slice(0, 8);
+  const candidateMoves = notationState.candidates.slice(0, 8);
   const remainingCount = Math.max(0, notationState.candidates.length - 8);
 
   const chevronColor = notationState.exactMatch
@@ -274,8 +278,13 @@ export function NotationInput({ controller }: NotationInputProps) {
           textOverflow: "ellipsis",
         }}
       >
-        {candidateSans.map((san) => (
-          <span key={san} style={{ marginRight: "var(--sp-3)" }}>
+        {candidateSans.map((san, i) => (
+          // Keyed on the move, not its label: a SAN is a name for a move and
+          // names are the thing that just went wrong here.
+          <span
+            key={toUci(candidateMoves[i]!)}
+            style={{ marginRight: "var(--sp-3)" }}
+          >
             <span style={{ color: "var(--text)" }}>{buffer}</span>
             <span style={{ color: "var(--text-faint)" }}>
               {san.startsWith(buffer) ? san.slice(buffer.length) : san}

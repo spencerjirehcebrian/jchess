@@ -56,6 +56,34 @@ describe("san-parser module", () => {
     expect(state).toBeDefined();
   });
 
+  /*
+   * While the engine is thinking it is the engine's turn, so NotationInput
+   * matches typed premoves against a clone with `turn` swapped to the human's
+   * colour. The SANs it shows must come from that same board: chessops
+   * disambiguates by looking for rival pieces of `pos.turn`, so rendering these
+   * candidates against the real position finds none and drops the
+   * disambiguating letter. Two knights that both reach f3 then both read "Nf3",
+   * which names neither of them and is ambiguous typed back.
+   */
+  it("disambiguates candidates against the board they were matched on", () => {
+    const pos = positionFromFen(
+      "2Qb3B/n1p2k2/p6q/2Pp4/PP3p1p/R2KP1PP/3N1p2/5BNn b - - 2 30",
+    );
+    const premoveBoard = pos.clone();
+    premoveBoard.turn = "white";
+
+    const legals = legalMoves(premoveBoard);
+    const state = matchPrefix("", legals, premoveBoard);
+
+    expect(state.candidateSans.length).toBe(state.candidates.length);
+    expect(new Set(state.candidateSans).size).toBe(state.candidateSans.length);
+
+    // The knights on d2 and g1 both reach f3, so both need their file.
+    expect(state.candidateSans).toContain("Ndf3");
+    expect(state.candidateSans).toContain("Ngf3");
+    expect(state.candidateSans).not.toContain("Nf3");
+  });
+
   it("returns zero candidates for invalid input without throwing", () => {
     const pos = positionFromFen(FIXTURE_FENS.START);
     const legals = legalMoves(pos);
