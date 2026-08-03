@@ -4,6 +4,11 @@ export default defineConfig({
   test: {
     environment: 'happy-dom',
     globals: true,
-    include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx']
+    include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],
+    server: {
+      deps: {
+        inline: ['chessops']
+      }
+    }
   }
 })
