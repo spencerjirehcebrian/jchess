@@ -89,6 +89,6 @@ than `origin`.
 
 `docs/` is the pre-implementation spec, written as instructions to the implementing agent. It remains the reference for intent, but the tree has since diverged: there is no `src/input/` (pointer handling lives in `BoardCanvas.tsx`, SAN entry in `NotationInput.tsx`), persistence is `src/storage/index.ts` rather than `src/persistence/db.ts`, animation is `src/render/animation/{engine,debris,shake}.ts`, and `src/audio/` is undocumented there. Read the docs for rules and invariants, the code for structure.
 
-`src/storage/` and `src/ui/DevConsole.tsx` are implemented and tested but not yet imported by `App.tsx` — persistence and resume are not wired up.
+`src/storage/` is implemented and tested but not yet imported by `App.tsx` — persistence and resume are not wired up.
 
 Per `docs/00-overview.md`: record any new dependency or any choice the docs left open in `DECISIONS.md`.
