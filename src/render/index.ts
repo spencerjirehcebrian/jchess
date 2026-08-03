@@ -1,10 +1,11 @@
 import * as THREE from "three";
-import { Theme, THEMES } from "./voxel/palette";
+import { Theme, THEMES, applyThemeToCss } from "./voxel/palette";
 import { createScene } from "./scene";
+import { meshBoard } from "./voxel/mesher";
 import { PieceManager } from "./pieces";
 import { OverlayManager } from "./overlay";
 import { raycastToSquare } from "./picking";
-import { AnimationEngine } from "./animation/engine";
+import { AnimationEngine, PieceAnimTarget } from "./animation/engine";
 import { Square } from "../core/types";
 import { Store } from "../store";
 import { positionAfter, legalMovesFrom } from "../core/rules";
@@ -15,6 +16,7 @@ export class Renderer {
   private webglRenderer: THREE.WebGLRenderer;
   private camera: THREE.OrthographicCamera;
   private scene: THREE.Scene;
+  private boardMesh: THREE.Mesh;
   private pieceManager: PieceManager;
   private overlayManager: OverlayManager;
   private animEngine = new AnimationEngine();
@@ -25,6 +27,7 @@ export class Renderer {
   private boardFlipped = false;
   private resizeObserver: ResizeObserver | null = null;
   private hoveredSquare: Square | null = null;
+  private currentBoardSize: string = "full";
 
   public onSquarePointerDown?: (square: Square, event: PointerEvent) => void;
   public onSquarePointerUp?: (square: Square, event: PointerEvent) => void;
@@ -53,9 +56,12 @@ export class Renderer {
       } as unknown as THREE.WebGLRenderer;
     }
 
-    const { scene, camera } = createScene(this.theme);
+    const { scene, camera, boardMesh } = createScene(this.theme);
     this.scene = scene;
     this.camera = camera;
+    this.boardMesh = boardMesh;
+
+    applyThemeToCss(this.theme);
 
     this.pieceManager = new PieceManager(this.theme);
     this.scene.add(this.pieceManager.piecesGroup);
@@ -73,7 +79,10 @@ export class Renderer {
     this.resize();
 
     this.resizeObserver = new ResizeObserver(() => this.resize());
-    this.resizeObserver.observe(this.canvas.parentElement || document.body);
+    this.resizeObserver.observe(this.canvas);
+    if (this.canvas.parentElement) {
+      this.resizeObserver.observe(this.canvas.parentElement);
+    }
 
     this.canvas.addEventListener("pointerdown", this.handlePointerDown);
     this.canvas.addEventListener("pointerup", this.handlePointerUp);
@@ -107,19 +116,163 @@ export class Renderer {
         ? (store as any).getState()
         : store;
 
+    let lastBoardSize = getState()?.boardSize;
+    let prevCursor = -1;
+
     const updateFromStore = (stateArg?: any) => {
       const state = stateArg && "history" in stateArg ? stateArg : getState();
       if (!state || !state.history) return;
 
+      if (state.theme && THEMES[state.theme] && THEMES[state.theme]!.id !== this.theme.id) {
+        this.setTheme(THEMES[state.theme]!);
+      }
+
       this.boardFlipped = !!state.boardFlipped;
 
+      if (state.boardSize !== lastBoardSize) {
+        lastBoardSize = state.boardSize;
+        this.currentBoardSize = state.boardSize ?? "full";
+        this.resize();
+        let frameCount = 0;
+        const animateResize = () => {
+          this.resize();
+          if (++frameCount < 15) {
+            requestAnimationFrame(animateResize);
+          }
+        };
+        requestAnimationFrame(animateResize);
+      }
+
       const historyToRender = state.history.slice(0, state.cursor);
+      const currentCursor = state.cursor;
+      const currentHistoryLength = state.history.length;
+
+      const isLiveSingleMove =
+        prevCursor >= 0 &&
+        currentCursor === currentHistoryLength &&
+        currentCursor === prevCursor + 1 &&
+        historyToRender.length > 0;
+
       const currentPos = positionAfter(
         state.initialFen,
         historyToRender.map((h: any) => h.move),
       );
 
-      this.pieceManager.updatePosition(currentPos, this.boardFlipped);
+      if (isLiveSingleMove) {
+        const lastEntry = historyToRender[historyToRender.length - 1];
+        const lastMove = lastEntry.move;
+        const prevHistory = historyToRender.slice(0, historyToRender.length - 1);
+        const prevPos = positionAfter(
+          state.initialFen,
+          prevHistory.map((h: any) => h.move),
+        );
+
+        const movingPiece = prevPos.board.get(lastMove.from);
+        const isKnight = movingPiece?.role === "knight";
+
+        let capturedSquare: Square | null = null;
+        if (
+          movingPiece?.role === "pawn" &&
+          lastMove.from % 8 !== lastMove.to % 8 &&
+          !prevPos.board.get(lastMove.to)
+        ) {
+          // En passant capture
+          capturedSquare = Math.floor(lastMove.from / 8) * 8 + (lastMove.to % 8);
+        } else if (prevPos.board.get(lastMove.to)) {
+          capturedSquare = lastMove.to;
+        }
+
+        let isCastle = false;
+        let rookFrom: Square | undefined;
+        let rookTo: Square | undefined;
+
+        if (movingPiece?.role === "king") {
+          const fromFile = lastMove.from % 8;
+          const toFile = lastMove.to % 8;
+          if (Math.abs(fromFile - toFile) === 2) {
+            isCastle = true;
+            if (lastMove.to === 6) {
+              rookFrom = 7;
+              rookTo = 5;
+            } else if (lastMove.to === 2) {
+              rookFrom = 0;
+              rookTo = 3;
+            } else if (lastMove.to === 62) {
+              rookFrom = 63;
+              rookTo = 61;
+            } else if (lastMove.to === 58) {
+              rookFrom = 56;
+              rookTo = 59;
+            }
+          }
+        }
+
+        const movingRendered = this.pieceManager.getPieceAt(lastMove.from);
+        const capturedRendered =
+          capturedSquare !== null ? this.pieceManager.getPieceAt(capturedSquare) : null;
+        const rookRendered =
+          isCastle && rookFrom !== undefined ? this.pieceManager.getPieceAt(rookFrom) : null;
+
+        if (movingRendered) {
+          const skipSquares = new Set<Square>([lastMove.to]);
+          if (rookTo !== undefined) skipSquares.add(rookTo);
+
+          const updateOpts: { skipSquares?: Set<Square>; retainedIds?: Set<string> } = {
+            skipSquares,
+          };
+          if (capturedRendered) {
+            updateOpts.retainedIds = new Set<string>([capturedRendered.id]);
+          }
+
+          this.pieceManager.updatePosition(currentPos, this.boardFlipped, updateOpts);
+
+          this.animEngine.cancelAll();
+
+          const capturedId = capturedRendered?.id;
+          const animTarget: PieceAnimTarget = {
+            mesh: movingRendered.mesh,
+            shadowQuad: movingRendered.shadowQuad,
+            fromSquare: lastMove.from,
+            toSquare: lastMove.to,
+            durationMs: 130,
+            isKnight,
+            isCapture: !!capturedRendered,
+            isCastle,
+            isPromotion: !!lastMove.promotion,
+          };
+
+          if (capturedRendered) {
+            animTarget.capturedMesh = capturedRendered.mesh;
+            animTarget.capturedShadowQuad = capturedRendered.shadowQuad;
+            animTarget.impactRing = this.overlayManager.impactRingMesh;
+          }
+
+          if (isCastle && rookRendered && rookFrom !== undefined && rookTo !== undefined) {
+            animTarget.rookMesh = rookRendered.mesh;
+            animTarget.rookShadowQuad = rookRendered.shadowQuad;
+            animTarget.rookFromSquare = rookFrom;
+            animTarget.rookToSquare = rookTo;
+          }
+
+          this.animEngine.animateMove(
+            animTarget,
+            this.boardFlipped,
+            () => {
+              if (capturedId) {
+                this.pieceManager.removePiece(capturedId);
+              }
+            },
+          );
+        } else {
+          this.animEngine.cancelAll();
+          this.pieceManager.updatePosition(currentPos, this.boardFlipped);
+        }
+      } else {
+        this.animEngine.cancelAll();
+        this.pieceManager.updatePosition(currentPos, this.boardFlipped);
+      }
+
+      prevCursor = currentCursor;
 
       // Update overlays
       const lastEntry = historyToRender[historyToRender.length - 1];
@@ -186,16 +339,36 @@ export class Renderer {
     }
   }
 
-  private resize(): void {
-    const width = this.canvas.parentElement?.clientWidth || window.innerWidth;
-    const height =
-      this.canvas.parentElement?.clientHeight || window.innerHeight;
+  public resize(): void {
+    if (!this.canvas) return;
+
+    const rect = this.canvas.getBoundingClientRect();
+    const parentRect = this.canvas.parentElement?.getBoundingClientRect();
+
+    const width = Math.max(
+      1,
+      Math.floor(
+        rect.width ||
+          this.canvas.clientWidth ||
+          parentRect?.width ||
+          window.innerWidth,
+      ),
+    );
+    const height = Math.max(
+      1,
+      Math.floor(
+        rect.height ||
+          this.canvas.clientHeight ||
+          parentRect?.height ||
+          window.innerHeight,
+      ),
+    );
 
     this.webglRenderer.setSize(width, height, false);
 
     const aspect = width / height;
     const extent = 10.0;
-    const padding = 1.15;
+    const padding = 1.03;
 
     const halfH = (extent * padding) / 2;
     const halfW = halfH * aspect;
@@ -204,6 +377,18 @@ export class Renderer {
     this.camera.right = halfW;
     this.camera.top = halfH;
     this.camera.bottom = -halfH;
+
+    // Scale camera zoom to make the 3D voxel board and pieces visibly scale up with board size
+    if (this.currentBoardSize === "full") {
+      this.camera.zoom = 1.25;
+    } else if (this.currentBoardSize === "large") {
+      this.camera.zoom = 1.12;
+    } else if (this.currentBoardSize === "compact") {
+      this.camera.zoom = 0.9;
+    } else {
+      this.camera.zoom = 1.0;
+    }
+
     this.camera.updateProjectionMatrix();
 
     this.requestRender();
@@ -217,6 +402,13 @@ export class Renderer {
   setTheme(theme: Theme): void {
     this.theme = theme;
     this.scene.background = new THREE.Color(theme.background);
+    if (this.boardMesh) {
+      this.boardMesh.geometry.dispose();
+      this.boardMesh.geometry = meshBoard(theme);
+    }
+    this.pieceManager.setTheme(theme);
+    this.overlayManager.setTheme(theme);
+    applyThemeToCss(theme);
     this.requestRender();
   }
 

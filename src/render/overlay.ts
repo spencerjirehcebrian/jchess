@@ -11,6 +11,7 @@ export class OverlayManager {
   private selectedSquareQuad: THREE.Mesh;
   private legalDotsGroup = new THREE.Group();
   private legalDotsPool: THREE.Mesh[] = [];
+  public readonly impactRingMesh: THREE.Mesh;
 
   constructor(theme: Theme) {
     this.group.name = "overlayGroup";
@@ -18,6 +19,20 @@ export class OverlayManager {
 
     const squareGeo = new THREE.PlaneGeometry(0.96, 0.96);
     squareGeo.rotateX(-Math.PI / 2);
+
+    // Impact ring for captures
+    const ringGeo = new THREE.RingGeometry(0.2, 0.45, 32);
+    ringGeo.rotateX(-Math.PI / 2);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(theme.white.detail),
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    this.impactRingMesh = new THREE.Mesh(ringGeo, ringMat);
+    this.impactRingMesh.visible = false;
+    this.group.add(this.impactRingMesh);
 
     // Last move from
     const fromMat = new THREE.MeshBasicMaterial({
@@ -119,6 +134,17 @@ export class OverlayManager {
     this.selectedSquareQuad.visible = false;
     for (const dot of this.legalDotsPool) {
       dot.visible = false;
+    }
+  }
+
+  setTheme(theme: Theme) {
+    const detailColor = new THREE.Color(theme.white.detail);
+    (this.impactRingMesh.material as THREE.MeshBasicMaterial).color = detailColor;
+    (this.lastMoveFromQuad.material as THREE.MeshBasicMaterial).color = detailColor;
+    (this.lastMoveToQuad.material as THREE.MeshBasicMaterial).color = detailColor;
+    (this.selectedSquareQuad.material as THREE.MeshBasicMaterial).color = detailColor;
+    if (this.legalDotsPool.length > 0) {
+      (this.legalDotsPool[0]!.material as THREE.MeshBasicMaterial).color = detailColor;
     }
   }
 }

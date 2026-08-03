@@ -15,7 +15,7 @@ export function createScene(theme: Theme): {
   const aspect =
     typeof window !== "undefined" ? window.innerWidth / window.innerHeight : 1;
   const extent = 10.0; // Board + frame extent
-  const padding = 1.15;
+  const padding = 1.03;
 
   const halfH = (extent * padding) / 2;
   const halfW = halfH * aspect;

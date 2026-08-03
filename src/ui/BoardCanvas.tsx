@@ -64,6 +64,16 @@ export function BoardCanvas({ controller }: BoardCanvasProps) {
     };
   }, [controller]);
 
+  const boardSize = useGameStore((s) => s.boardSize) ?? "full";
+  const maxSize =
+    boardSize === "full"
+      ? "100%"
+      : boardSize === "large"
+        ? "90%"
+        : boardSize === "compact"
+          ? "60%"
+          : "75%";
+
   return (
     <div
       style={{
@@ -73,19 +83,32 @@ export function BoardCanvas({ controller }: BoardCanvasProps) {
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
+        overflow: "hidden",
       }}
     >
-      <canvas
-        ref={canvasRef}
-        aria-label="Chess board view"
+      <div
         style={{
           width: "100%",
           height: "100%",
-          maxHeight: "720px",
-          maxWidth: "720px",
-          display: "block",
+          maxWidth: maxSize,
+          maxHeight: maxSize,
+          position: "relative",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          transition: "max-width var(--dur-base) ease-in-out, max-height var(--dur-base) ease-in-out",
         }}
-      />
+      >
+        <canvas
+          ref={canvasRef}
+          aria-label="Chess board view"
+          style={{
+            width: "100%",
+            height: "100%",
+            display: "block",
+          }}
+        />
+      </div>
     </div>
   );
 }

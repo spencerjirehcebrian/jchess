@@ -13,6 +13,7 @@ import {
 import { getDifficulty } from "../core/difficulty";
 import { audioEngine } from "../audio";
 import { getConfig } from "../config";
+import { THEMES, applyThemeToCss } from "../render/voxel/palette";
 
 export class GameController {
   private store: Store;
@@ -84,7 +85,8 @@ export class GameController {
     ) {
       // Add to premove queue if within maxPremoves limit
       const config = getConfig();
-      if (state.premoves.length < config.maxPremoves) {
+      const maxPremoves = state.maxPremoves ?? config.maxPremoves;
+      if (state.premoves.length < maxPremoves) {
         audioEngine.playSound("premove");
         this.store.setState((prev) => ({
           premoves: [...prev.premoves, move],
@@ -412,6 +414,27 @@ export class GameController {
   flipBoard() {
     this.store.setState((prev) => ({
       boardFlipped: !prev.boardFlipped,
+    }));
+  }
+
+  setTheme(themeId: string) {
+    if (THEMES[themeId]) {
+      applyThemeToCss(THEMES[themeId]!);
+      this.store.setState(() => ({
+        theme: themeId,
+      }));
+    }
+  }
+
+  setMaxPremoves(maxPremoves: number) {
+    this.store.setState(() => ({
+      maxPremoves,
+    }));
+  }
+
+  setBoardSize(boardSize: "compact" | "normal" | "large" | "full") {
+    this.store.setState(() => ({
+      boardSize,
     }));
   }
 }

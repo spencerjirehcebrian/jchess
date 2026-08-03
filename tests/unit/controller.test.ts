@@ -145,4 +145,21 @@ describe("GameController", () => {
     expect(store.history.length).toBe(0);
     expect(store.status.kind).toBe("human-turn");
   });
+
+  it("updates boardSize via setBoardSize", () => {
+    const store = {
+      ...initialGameState,
+      setState: (fn: any) => Object.assign(store, fn(store)),
+    };
+    const controller = new GameController(store as any);
+
+    controller.setBoardSize("large");
+    expect(store.boardSize).toBe("large");
+
+    controller.setBoardSize("full");
+    expect(store.boardSize).toBe("full");
+
+    controller.setBoardSize("compact");
+    expect(store.boardSize).toBe("compact");
+  });
 });

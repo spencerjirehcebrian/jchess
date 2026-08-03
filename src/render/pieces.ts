@@ -15,6 +15,11 @@ export interface RenderedPiece {
   square: Square;
 }
 
+export interface UpdatePositionOptions {
+  skipSquares?: Set<Square> | undefined;
+  retainedIds?: Set<string> | undefined;
+}
+
 export class PieceManager {
   readonly piecesGroup = new THREE.Group();
   readonly shadowQuadsGroup = new THREE.Group();
@@ -41,6 +46,22 @@ export class PieceManager {
     this.precacheGeometries(theme);
   }
 
+  setTheme(theme: Theme) {
+    for (const geo of this.geometryCache.values()) {
+      geo.dispose();
+    }
+    this.geometryCache.clear();
+    this.precacheGeometries(theme);
+
+    for (const active of this.activePieces.values()) {
+      const geoKey = `${active.color}-${active.role}`;
+      const newGeo = this.geometryCache.get(geoKey);
+      if (newGeo) {
+        active.mesh.geometry = newGeo;
+      }
+    }
+  }
+
   private precacheGeometries(theme: Theme) {
     const roles: Role[] = ["pawn", "knight", "bishop", "rook", "queen", "king"];
     for (const role of roles) {
@@ -59,7 +80,11 @@ export class PieceManager {
     }
   }
 
-  updatePosition(pos: Position, boardFlipped: boolean) {
+  updatePosition(
+    pos: Position,
+    boardFlipped: boolean,
+    options?: UpdatePositionOptions,
+  ) {
     const currentPieces = new Map<Square, { role: Role; color: Color }>();
 
     for (let sq = 0; sq < 64; sq++) {
@@ -71,6 +96,12 @@ export class PieceManager {
 
     // Match existing active pieces to new squares or create/remove
     const usedIds = new Set<string>();
+    if (options?.retainedIds) {
+      for (const id of options.retainedIds) {
+        usedIds.add(id);
+      }
+    }
+
     const materialCache = new Map<string, THREE.MeshLambertMaterial>();
 
     const getMaterial = () => {
@@ -114,12 +145,20 @@ export class PieceManager {
       }
 
       const worldPos = squareToWorld(sq, boardFlipped);
+      const scale = role === "pawn" ? 0.85 : 1;
 
       if (matchedPiece) {
         usedIds.add(matchedPiece.id);
         matchedPiece.square = sq;
-        matchedPiece.mesh.position.set(worldPos.x, 0, worldPos.z);
-        matchedPiece.shadowQuad.position.set(worldPos.x, 0.01, worldPos.z);
+
+        // Skip direct position snapping if piece is currently being animated
+        if (!options?.skipSquares?.has(sq)) {
+          matchedPiece.mesh.position.set(worldPos.x, 0, worldPos.z);
+          matchedPiece.mesh.rotation.set(0, 0, 0);
+          matchedPiece.mesh.scale.set(scale, scale, scale);
+          matchedPiece.shadowQuad.position.set(worldPos.x, 0.01, worldPos.z);
+          matchedPiece.shadowQuad.scale.set(scale, scale, scale);
+        }
       } else {
         // Create new piece mesh
         const id = `${color}-${role}-${sq}-${Math.random().toString(36).slice(2, 6)}`;
@@ -129,11 +168,13 @@ export class PieceManager {
         mesh.castShadow = true;
         mesh.receiveShadow = false;
         mesh.position.set(worldPos.x, 0, worldPos.z);
+        mesh.scale.set(scale, scale, scale);
 
         const shadowGeo = new THREE.PlaneGeometry(0.85, 0.85);
         shadowGeo.rotateX(-Math.PI / 2);
         const shadowQuad = new THREE.Mesh(shadowGeo, this.shadowMaterial);
         shadowQuad.position.set(worldPos.x, 0.01, worldPos.z);
+        shadowQuad.scale.set(scale, scale, scale);
 
         const newPiece: RenderedPiece = {
           id,
@@ -168,6 +209,16 @@ export class PieceManager {
       if (active.square === square) return active;
     }
     return null;
+  }
+
+  removePiece(id: string) {
+    const active = this.activePieces.get(id);
+    if (active) {
+      this.piecesGroup.remove(active.mesh);
+      this.shadowQuadsGroup.remove(active.shadowQuad);
+      active.mesh.geometry.dispose();
+      this.activePieces.delete(id);
+    }
   }
 
   getActivePieces(): RenderedPiece[] {

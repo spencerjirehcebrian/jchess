@@ -30,7 +30,7 @@ export function serializePgn(state: GameState): string {
       : `Stockfish (Level ${state.difficulty})`;
 
   const tags: [string, string][] = [
-    ["Event", "Voxel Chess"],
+    ["Event", "jchess"],
     [
       "Site",
       typeof window !== "undefined" ? window.location.hostname : "localhost",

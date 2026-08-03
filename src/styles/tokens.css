@@ -1,4 +1,6 @@
 :root {
+  color-scheme: dark;
+
   /* Surface — matches the 3D background so the canvas has no visible seam */
   --bg: #1a1d21;
   --surface: #23272c;

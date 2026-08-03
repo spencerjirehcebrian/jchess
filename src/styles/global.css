@@ -50,13 +50,40 @@ a:hover {
   outline-offset: 2px;
 }
 
+select option {
+  background-color: var(--surface-raised);
+  color: var(--text);
+}
+
+input::placeholder {
+  color: var(--text-faint);
+  opacity: 0.8;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--surface);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--radius);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-faint);
+}
+
 .app-main-layout {
   flex: 1;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(300px, 340px);
-  gap: var(--sp-4);
-  padding: var(--sp-4);
-  max-width: 1200px;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-4);
   margin: 0 auto;
   width: 100%;
   box-sizing: border-box;

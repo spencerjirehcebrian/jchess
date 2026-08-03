@@ -12,7 +12,7 @@ declare global {
 }
 
 const DEFAULT_CONFIG: RuntimeConfig = {
-  defaultDifficulty: 4,
+  defaultDifficulty: 2,
   maxPremoves: 3,
   enableClocks: false,
 };

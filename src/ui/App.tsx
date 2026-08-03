@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useGameStore } from "../store";
 import { GameController } from "../store/controller";
 import { createStockfishEngine } from "../engine/stockfish";
+import { THEMES, applyThemeToCss } from "../render/voxel/palette";
 
 import { BoardCanvas } from "./BoardCanvas";
 import { NotationInput } from "./NotationInput";
@@ -11,6 +12,7 @@ import { GameControls } from "./GameControls";
 import { StatusBar } from "./StatusBar";
 import { ResultBanner } from "./ResultBanner";
 import { SettingsPanel } from "./SettingsPanel";
+import { BoardSizeControls } from "./BoardSizeControls";
 
 export function App() {
   const state = useGameStore();
@@ -18,6 +20,9 @@ export function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   useEffect(() => {
+    const activeTheme = state.theme ? THEMES[state.theme] : THEMES.oxide;
+    if (activeTheme) applyThemeToCss(activeTheme);
+
     const engine = createStockfishEngine();
     const ctrl = new GameController(useGameStore as any, engine);
     setController(ctrl);
@@ -70,7 +75,7 @@ export function App() {
               textTransform: "uppercase",
             }}
           >
-            Voxel Chess
+            jchess
           </h1>
           <span
             style={{ fontSize: "var(--size-sm)", color: "var(--text-dim)" }}
@@ -79,21 +84,44 @@ export function App() {
           </span>
         </div>
 
-        <button
-          onClick={() => setIsSettingsOpen(true)}
-          aria-label="Settings"
-          style={{
-            cursor: "pointer",
-            color: "var(--text-dim)",
-            fontSize: "var(--size-md)",
-          }}
+        <div
+          style={{ display: "flex", alignItems: "center", gap: "var(--sp-4)" }}
         >
-          ⚙
-        </button>
+          <BoardSizeControls controller={controller} />
+
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            aria-label="Settings"
+            style={{
+              cursor: "pointer",
+              color: "var(--text-dim)",
+              fontSize: "var(--size-md)",
+              padding: "var(--sp-1) var(--sp-2)",
+              background: "var(--surface-raised)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius)",
+            }}
+          >
+            ⚙
+          </button>
+        </div>
       </header>
 
       {/* Main Layout */}
-      <main className="app-main-layout">
+      <main
+        className="app-main-layout"
+        style={{
+          maxWidth:
+            state.boardSize === "full"
+              ? "100%"
+              : state.boardSize === "large"
+                ? "90%"
+                : state.boardSize === "compact"
+                  ? "60%"
+                  : "75%",
+          transition: "max-width var(--dur-base) ease-in-out",
+        }}
+      >
         {/* Left Column: Board + NotationInput */}
         <div
           style={{
@@ -142,7 +170,10 @@ export function App() {
       </main>
 
       {isSettingsOpen && (
-        <SettingsPanel onClose={() => setIsSettingsOpen(false)} />
+        <SettingsPanel
+          controller={controller}
+          onClose={() => setIsSettingsOpen(false)}
+        />
       )}
     </div>
   );

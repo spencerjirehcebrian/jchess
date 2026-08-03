@@ -13,9 +13,9 @@ describe("PGN serialization and parsing unit tests", () => {
 
   it("serializes standard initial position state into PGN", () => {
     const pgn = serializePgn(initialGameState);
-    expect(pgn).toContain('[Event "Voxel Chess"]');
+    expect(pgn).toContain('[Event "jchess"]');
     expect(pgn).toContain('[White "Player"]');
-    expect(pgn).toContain('[Black "Stockfish (Level 4)"]');
+    expect(pgn).toContain('[Black "Stockfish (Level 2)"]');
     expect(pgn).toContain('[Result "*"]');
     expect(pgn).not.toContain("[FEN");
   });

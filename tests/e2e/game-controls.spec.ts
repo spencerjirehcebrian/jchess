@@ -40,11 +40,25 @@ test.describe("Game Controls E2E", () => {
     ).toBeVisible();
 
     // Close settings modal
-    const closeBtn = page.getByRole("button", { name: "Close" });
+    const closeBtn = page.getByRole("button", { name: "Close", exact: true });
     await closeBtn.click();
 
     await expect(
       page.getByRole("heading", { name: "SETTINGS" }),
     ).not.toBeVisible();
+  });
+
+  test("resizes board via header board size controls", async ({ page }) => {
+    const wrapper = page.locator('canvas[aria-label="Chess board view"]').locator("..");
+    await expect(wrapper).toHaveCSS("max-width", "100%");
+
+    const decBtn = page.getByRole("button", { name: "Make board smaller" });
+    await expect(decBtn).toBeVisible();
+    await decBtn.click();
+    await expect(wrapper).toHaveCSS("max-width", "90%");
+
+    const incBtn = page.getByRole("button", { name: "Make board larger" });
+    await incBtn.click();
+    await expect(wrapper).toHaveCSS("max-width", "100%");
   });
 });

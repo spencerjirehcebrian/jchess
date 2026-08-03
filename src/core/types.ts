@@ -59,6 +59,9 @@ export interface GameState {
   initialFen: string;
   humanColor: Color;
   difficulty: number; // 1-8
+  theme: string; // "oxide" | "monochrome" | "forest"
+  maxPremoves: number;
+  boardSize?: "compact" | "normal" | "large" | "full";
   history: HistoryEntry[];
   cursor: number; // index into history for browsing; = length when live
   status: GameStatus;

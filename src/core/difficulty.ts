@@ -27,7 +27,7 @@ export const DIFFICULTY_LEVELS: Record<number, DifficultyLevel> = {
   2: {
     id: 2,
     label: "Casual",
-    approxElo: 1100,
+    approxElo: 1000,
     uciOptions: {
       "Skill Level": 3,
       UCI_LimitStrength: true,

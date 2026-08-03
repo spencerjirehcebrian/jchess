@@ -75,11 +75,19 @@ export function NotationInput({ controller }: NotationInputProps) {
     <div
       style={{
         width: "100%",
+        height: "76px",
+        minHeight: "76px",
+        maxHeight: "76px",
+        flexShrink: 0,
+        boxSizing: "border-box",
         background: "var(--surface)",
         border: `1px solid ${isShaking ? "var(--error)" : notationState.exactMatch ? "var(--accent)" : "var(--border)"}`,
         borderRadius: "var(--radius)",
         padding: "var(--sp-2) var(--sp-4)",
         fontFamily: "var(--font-mono)",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center",
         animation: isShaking ? "shake 220ms ease-in-out" : "none",
         transition: "border-color var(--dur-fast) ease",
       }}
@@ -115,32 +123,46 @@ export function NotationInput({ controller }: NotationInputProps) {
             background: "transparent",
           }}
         />
-      </div>
-
-      {buffer && (
-        <div
+        <span
           style={{
-            fontSize: "var(--size-sm)",
-            color: "var(--text-dim)",
-            marginTop: "var(--sp-1)",
+            fontSize: "var(--size-xs)",
+            color: "var(--text-faint)",
+            whiteSpace: "nowrap",
+            marginLeft: "var(--sp-2)",
           }}
         >
-          {candidateSans.join("   ")}
-          {remainingCount > 0 && (
-            <span style={{ color: "var(--text-faint)" }}>
-              {" "}
-              +{remainingCount} more
-            </span>
-          )}
-          {notationState.ambiguous && (
-            <span
-              style={{ color: "var(--warning)", marginLeft: "var(--sp-2)" }}
-            >
-              Type file or piece to specify
-            </span>
-          )}
-        </div>
-      )}
+          [↵ move]
+        </span>
+      </div>
+
+      <div
+        style={{
+          height: "20px",
+          lineHeight: "20px",
+          fontSize: "var(--size-sm)",
+          color: "var(--text-dim)",
+          marginTop: "var(--sp-1)",
+          visibility: buffer ? "visible" : "hidden",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}
+      >
+        {candidateSans.join("   ")}
+        {remainingCount > 0 && (
+          <span style={{ color: "var(--text-faint)" }}>
+            {" "}
+            +{remainingCount} more
+          </span>
+        )}
+        {notationState.ambiguous && (
+          <span
+            style={{ color: "var(--warning)", marginLeft: "var(--sp-2)" }}
+          >
+            Type file or piece to specify
+          </span>
+        )}
+      </div>
     </div>
   );
 }

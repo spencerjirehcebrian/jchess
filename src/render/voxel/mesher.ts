@@ -250,7 +250,7 @@ export function meshBoard(theme: Theme): THREE.BufferGeometry {
           for (const v of quad) {
             const vx = (x + v[0]! + offset) * VOXEL_SIZE;
             const vy = 0;
-            const vz = (z + v[1]! + offset) * VOXEL_SIZE;
+            const vz = (z + v[2]! + offset) * VOXEL_SIZE;
             positions.push(vx, vy, vz);
             normals.push(0, 1, 0);
             colors.push(shadedColor.r, shadedColor.g, shadedColor.b);

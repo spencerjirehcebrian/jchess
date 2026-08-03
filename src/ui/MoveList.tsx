@@ -39,6 +39,7 @@ export function MoveList({ controller }: MoveListProps) {
       ref={listRef}
       style={{
         flex: 1,
+        minHeight: 0,
         overflowY: "auto",
         fontFamily: "var(--font-mono)",
         fontSize: "var(--size-sm)",

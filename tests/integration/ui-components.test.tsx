@@ -9,6 +9,7 @@ import { ResultBanner } from '../../src/ui/ResultBanner'
 import { SettingsPanel } from '../../src/ui/SettingsPanel'
 import { NotationInput } from '../../src/ui/NotationInput'
 import { MoveList } from '../../src/ui/MoveList'
+import { BoardSizeControls } from '../../src/ui/BoardSizeControls'
 import { App } from '../../src/ui/App'
 
 describe('UI Component Integration Tests', () => {
@@ -22,13 +23,13 @@ describe('UI Component Integration Tests', () => {
     expect(screen.getByText('Your move')).toBeTruthy()
   })
 
-  it('renders DifficultyPicker and triggers startNewGame on click', () => {
+  it('renders DifficultyPicker and triggers startNewGame on selection', () => {
     const controller = new GameController(useGameStore as any)
     render(<DifficultyPicker controller={controller} />)
 
-    const level1Btn = screen.getByText(/Level 1/)
-    expect(level1Btn).toBeTruthy()
-    fireEvent.click(level1Btn)
+    const select = screen.getByLabelText('Engine Level') as HTMLSelectElement
+    expect(select).toBeTruthy()
+    fireEvent.change(select, { target: { value: '1' } })
 
     expect(useGameStore.getState().difficulty).toBe(1)
   })
@@ -54,10 +55,15 @@ describe('UI Component Integration Tests', () => {
     expect(screen.getByText('by checkmate')).toBeTruthy()
   })
 
-  it('renders SettingsPanel and handles closing', () => {
+  it('renders SettingsPanel and handles theme selection and closing', () => {
     let closed = false
-    render(<SettingsPanel onClose={() => { closed = true }} />)
+    const controller = new GameController(useGameStore as any)
+    render(<SettingsPanel controller={controller} onClose={() => { closed = true }} />)
     expect(screen.getByText('Settings')).toBeTruthy()
+
+    const themeSelect = screen.getByLabelText('Theme') as HTMLSelectElement
+    fireEvent.change(themeSelect, { target: { value: 'forest' } })
+    expect(useGameStore.getState().theme).toBe('forest')
 
     const closeBtn = screen.getByText('Close')
     fireEvent.click(closeBtn)
@@ -95,9 +101,26 @@ describe('UI Component Integration Tests', () => {
     expect(useGameStore.getState().cursor).toBe(1)
   })
 
+  it('renders BoardSizeControls and increases/decreases board size', () => {
+    const controller = new GameController(useGameStore as any)
+    render(<BoardSizeControls controller={controller} />)
+
+    expect(screen.getByText('Size')).toBeTruthy()
+    const decBtn = screen.getByLabelText('Make board smaller')
+    fireEvent.click(decBtn)
+    expect(useGameStore.getState().boardSize).toBe('large')
+
+    const maxBtn = screen.getByLabelText('Maximize board size')
+    fireEvent.click(maxBtn)
+    expect(useGameStore.getState().boardSize).toBe('full')
+
+    fireEvent.click(decBtn)
+    expect(useGameStore.getState().boardSize).toBe('large')
+  })
+
   it('renders main App layout without crashing', () => {
     const { container } = render(<App />)
-    expect(screen.getByText('Voxel Chess')).toBeTruthy()
+    expect(screen.getByText('jchess')).toBeTruthy()
     expect(container.querySelector('canvas')).toBeTruthy()
   })
 })

@@ -53,13 +53,14 @@ export function DevConsole() {
     <div
       style={{ padding: "1.5rem", fontFamily: "monospace", maxWidth: "600px" }}
     >
-      <h2>Voxel Chess — M1 Dev Console</h2>
+      <h2>jchess — M1 Dev Console</h2>
       <div
         style={{
           margin: "1rem 0",
-          background: "#23272c",
+          background: "var(--surface)",
+          border: "1px solid var(--border)",
           padding: "1rem",
-          borderRadius: "4px",
+          borderRadius: "var(--radius)",
         }}
       >
         <p>
@@ -82,9 +83,10 @@ export function DevConsole() {
           style={{
             padding: "0.5rem",
             width: "70%",
-            background: "#2c3138",
-            border: "1px solid #4a525c",
-            color: "#fff",
+            background: "var(--surface-raised)",
+            border: "1px solid var(--border-strong)",
+            color: "var(--text)",
+            borderRadius: "var(--radius)",
           }}
         />
         <button
@@ -92,9 +94,10 @@ export function DevConsole() {
           style={{
             padding: "0.5rem 1rem",
             marginLeft: "0.5rem",
-            background: "#8fa89b",
-            color: "#1a1d21",
+            background: "var(--accent)",
+            color: "var(--bg)",
             fontWeight: "bold",
+            borderRadius: "var(--radius)",
           }}
         >
           Move
