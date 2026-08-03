@@ -256,6 +256,43 @@ describe("AnimationEngine unit tests", () => {
       engine.update(startT + 320);
       expect(onCompleteCalled).toBe(true);
     });
+
+    /*
+     * A refused drop is the hand putting a piece back. It falls and squashes
+     * like anything else with weight, but the board must not react — a shake
+     * says "a move was made", and declining one is not making one. The shake is
+     * the only thing that displaces the board, so its absence is visible as a
+     * zero position offset.
+     */
+    it("does not shake the board when the piece is only being put back", () => {
+      const shakeAfterLanding = (isReturn: boolean) => {
+        const engine = new AnimationEngine();
+        const startT = performance.now();
+
+        engine.animateMove(
+          {
+            mesh: new THREE.Mesh(),
+            shadowQuad: new THREE.Mesh(),
+            fromSquare: 12, // e2
+            toSquare: 12, // back where it came from
+            durationMs: 200,
+            isReturn,
+            arrival: {
+              startWorld: new THREE.Vector3(0.2, 0, -0.3),
+              startY: 0.6,
+            },
+          },
+          false,
+        );
+
+        // Past impactT (0.3 x 200ms = 60ms), so the landing has fired.
+        engine.update(startT + 80);
+        return engine.physicsEngine.getTransform().positionOffset.length();
+      };
+
+      expect(shakeAfterLanding(true)).toBe(0);
+      expect(shakeAfterLanding(false)).toBeGreaterThan(0);
+    });
   });
 
   it("immediately cancels active animations", () => {

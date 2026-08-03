@@ -58,6 +58,12 @@ export interface PieceAnimTarget {
   toSquare: Square;
   durationMs: number;
   arrival?: ArrivalParams | undefined;
+  /**
+   * A piece being put back where it came from, because the drop was refused.
+   * It still falls and squashes — it is a real object meeting a real board —
+   * but nothing happened, so the board does not react to it.
+   */
+  isReturn?: boolean | undefined;
   isKnight?: boolean | undefined;
   isCapture?: boolean | undefined;
   capturedMesh?: THREE.Mesh | undefined;
@@ -310,12 +316,21 @@ export class AnimationEngine {
       const landT = arrival ? impactT : 1;
       if (!anim.hasLanded && rawT >= landT) {
         anim.hasLanded = true;
-        this.physicsEngine.triggerImpactRecoil(ux, uz, 0.07);
-        if (!anim.target.isCapture) {
-          // A placed piece is set down deliberately, so it reads a shade
-          // firmer than one that merely arrived.
-          if (arrival) this.physicsEngine.triggerShake(0.45, 180, now);
-          else this.physicsEngine.triggerShake(0.35, 160, now);
+
+        // A refused drop is a piece being set back down. The square it lands on
+        // dips a little, because something touched it, but the board does not
+        // shake — nothing was played, and a shake here claimed a move had been
+        // made every time one was declined.
+        if (anim.target.isReturn) {
+          this.physicsEngine.triggerImpactRecoil(ux, uz, 0.02);
+        } else {
+          this.physicsEngine.triggerImpactRecoil(ux, uz, 0.07);
+          if (!anim.target.isCapture) {
+            // A placed piece is set down deliberately, so it reads a shade
+            // firmer than one that merely arrived.
+            if (arrival) this.physicsEngine.triggerShake(0.45, 180, now);
+            else this.physicsEngine.triggerShake(0.35, 160, now);
+          }
         }
       }
 

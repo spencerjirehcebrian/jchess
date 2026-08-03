@@ -818,7 +818,8 @@ export class Renderer {
 
   /**
    * Falls the released piece back onto the square it came from. Same machinery
-   * as landing on a destination — the destination is just the origin.
+   * as landing on a destination — the destination is just the origin — but
+   * flagged `isReturn`, so the board stays still. Nothing was played.
    */
   private returnDroppedPiece(): void {
     const pending = this.pendingDrop;
@@ -835,6 +836,7 @@ export class Renderer {
         fromSquare: pending.from,
         toSquare: pending.from,
         durationMs: DROP_QUIET_MS,
+        isReturn: true,
         arrival: {
           startWorld: pending.pose.world,
           startY: pending.pose.y,
