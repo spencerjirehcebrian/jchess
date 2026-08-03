@@ -3,6 +3,11 @@ import { Square } from "../core/types";
 import { squareToWorld } from "./picking";
 import { Theme } from "./voxel/palette";
 
+export type DotVariant = "legal" | "premove";
+
+/** No theme exposes an error token; premove drain failures use a fixed red. */
+const ERROR_FLASH_COLOR = "#C64B4B";
+
 export class OverlayManager {
   readonly group = new THREE.Group();
 
@@ -11,6 +16,11 @@ export class OverlayManager {
   private selectedSquareQuad: THREE.Mesh;
   private legalDotsGroup = new THREE.Group();
   private legalDotsPool: THREE.Mesh[] = [];
+  private legalDotMaterial: THREE.MeshBasicMaterial;
+  private premoveDotMaterial: THREE.MeshBasicMaterial;
+  private flashPool: THREE.Mesh[] = [];
+  private flashMaterial: THREE.MeshBasicMaterial;
+  private flashTimer: ReturnType<typeof setTimeout> | null = null;
   public readonly impactRingMesh: THREE.Mesh;
 
   constructor(theme: Theme) {
@@ -77,6 +87,16 @@ export class OverlayManager {
       depthWrite: false,
     });
 
+    this.legalDotMaterial = dotMat;
+
+    // Premove destinations get a distinct hue (docs/08-input.md).
+    this.premoveDotMaterial = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(theme.cssTokens.premove),
+      transparent: true,
+      opacity: 0.65,
+      depthWrite: false,
+    });
+
     for (let i = 0; i < 28; i++) {
       const dot = new THREE.Mesh(dotGeo, dotMat);
       dot.visible = false;
@@ -84,6 +104,20 @@ export class OverlayManager {
       this.legalDotsGroup.add(dot);
     }
     this.group.add(this.legalDotsGroup);
+
+    // Error flash for a premove queue that failed to drain.
+    this.flashMaterial = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(ERROR_FLASH_COLOR),
+      transparent: true,
+      opacity: 0.55,
+      depthWrite: false,
+    });
+    for (let i = 0; i < 4; i++) {
+      const quad = new THREE.Mesh(squareGeo, this.flashMaterial);
+      quad.visible = false;
+      this.flashPool.push(quad);
+      this.group.add(quad);
+    }
   }
 
   setLastMove(from: Square | null, to: Square | null, boardFlipped: boolean) {
@@ -114,9 +148,17 @@ export class OverlayManager {
     }
   }
 
-  setLegalMoveDots(squares: Square[], boardFlipped: boolean) {
+  setLegalMoveDots(
+    squares: Square[],
+    boardFlipped: boolean,
+    variant: DotVariant = "legal",
+  ) {
+    const material =
+      variant === "premove" ? this.premoveDotMaterial : this.legalDotMaterial;
+
     for (let i = 0; i < this.legalDotsPool.length; i++) {
       const dot = this.legalDotsPool[i]!;
+      dot.material = material;
       if (i < squares.length) {
         const sq = squares[i]!;
         const pos = squareToWorld(sq, boardFlipped);
@@ -128,12 +170,43 @@ export class OverlayManager {
     }
   }
 
+  /** Briefly highlights squares in the error hue; `onChange` requests a redraw. */
+  flashSquares(
+    squares: Square[],
+    boardFlipped: boolean,
+    durationMs: number,
+    onChange?: () => void,
+  ) {
+    if (this.flashTimer !== null) clearTimeout(this.flashTimer);
+
+    for (let i = 0; i < this.flashPool.length; i++) {
+      const quad = this.flashPool[i]!;
+      if (i < squares.length) {
+        const pos = squareToWorld(squares[i]!, boardFlipped);
+        quad.position.set(pos.x, 0, pos.z);
+        quad.visible = true;
+      } else {
+        quad.visible = false;
+      }
+    }
+    onChange?.();
+
+    this.flashTimer = setTimeout(() => {
+      this.flashTimer = null;
+      for (const quad of this.flashPool) quad.visible = false;
+      onChange?.();
+    }, durationMs);
+  }
+
   clearAll() {
     this.lastMoveFromQuad.visible = false;
     this.lastMoveToQuad.visible = false;
     this.selectedSquareQuad.visible = false;
     for (const dot of this.legalDotsPool) {
       dot.visible = false;
+    }
+    for (const quad of this.flashPool) {
+      quad.visible = false;
     }
   }
 
@@ -143,12 +216,19 @@ export class OverlayManager {
     (this.lastMoveFromQuad.material as THREE.MeshBasicMaterial).color = detailColor;
     (this.lastMoveToQuad.material as THREE.MeshBasicMaterial).color = detailColor;
     (this.selectedSquareQuad.material as THREE.MeshBasicMaterial).color = detailColor;
-    if (this.legalDotsPool.length > 0) {
-      (this.legalDotsPool[0]!.material as THREE.MeshBasicMaterial).color = detailColor;
-    }
+    this.legalDotMaterial.color = detailColor;
+    this.premoveDotMaterial.color = new THREE.Color(theme.cssTokens.premove);
   }
 
   dispose() {
+    if (this.flashTimer !== null) {
+      clearTimeout(this.flashTimer);
+      this.flashTimer = null;
+    }
+    // Flash quads share squareGeo with the highlight quads disposed below.
+    this.premoveDotMaterial.dispose();
+    this.flashMaterial.dispose();
+    this.flashPool = [];
     this.impactRingMesh.geometry.dispose();
     (this.impactRingMesh.material as THREE.Material).dispose();
     this.lastMoveFromQuad.geometry.dispose();

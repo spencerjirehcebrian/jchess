@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useGameStore } from "../store";
 import { GameController } from "../store/controller";
 import { createStockfishEngine } from "../engine/stockfish";
+import { isSearchCancelled } from "../engine/types";
 import { THEMES, applyThemeToCss } from "../render/voxel/palette";
 
 import { BoardCanvas } from "./BoardCanvas";
@@ -33,6 +34,9 @@ export function App() {
         ctrl.startNewGame();
       })
       .catch((err) => {
+        // Unmounting (or StrictMode's double-invoke) disposes the engine
+        // mid-handshake; that is an intentional teardown, not a failure.
+        if (isSearchCancelled(err)) return;
         console.error("Engine init error:", err);
       });
 

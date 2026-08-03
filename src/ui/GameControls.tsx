@@ -1,4 +1,5 @@
 import { GameController } from "../store/controller";
+import { useGameStore } from "../store";
 
 interface GameControlsProps {
   controller: GameController | null;
@@ -9,6 +10,10 @@ export function GameControls({
   controller,
   onOpenSettings,
 }: GameControlsProps) {
+  // Subscribe so the takeback button re-evaluates as the game progresses.
+  useGameStore();
+  const takebackDisabled = !controller || !controller.canTakeback();
+
   return (
     <div
       style={{
@@ -19,6 +24,8 @@ export function GameControls({
     >
       <button
         onClick={() => controller?.takeback()}
+        disabled={takebackDisabled}
+        aria-disabled={takebackDisabled}
         style={{
           flex: 1,
           padding: "var(--sp-2) var(--sp-3)",
@@ -27,7 +34,8 @@ export function GameControls({
           borderRadius: "var(--radius)",
           color: "var(--text)",
           fontSize: "var(--size-sm)",
-          cursor: "pointer",
+          cursor: takebackDisabled ? "not-allowed" : "pointer",
+          opacity: takebackDisabled ? 0.5 : 1,
         }}
       >
         Take back

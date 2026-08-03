@@ -124,16 +124,27 @@ export function toUci(move: Move): string {
   return `${fromName}${toName}${promo}`;
 }
 
-export function fromUci(uciStr: string): Move | null {
+/**
+ * Parses a UCI move. Pass `pos` whenever one is available: the king-takes-rook
+ * castling encoding is remapped to this codebase's king-destination convention
+ * only when the piece on `from` is actually a king, so an ordinary back-rank
+ * rook move like `e1h1` is not silently rewritten to `e1g1`. With `pos`
+ * omitted the remap is unconditional, preserving the pure toUci/fromUci
+ * string round-trip.
+ */
+export function fromUci(uciStr: string, pos?: Position): Move | null {
   if (uciStr.length < 4 || uciStr.length > 5) return null;
   const from = nameToSquare(uciStr.slice(0, 2));
   let to = nameToSquare(uciStr.slice(2, 4));
   if (from === null || to === null) return null;
 
-  if (from === 4 && to === 7) to = 6;
-  if (from === 4 && to === 0) to = 2;
-  if (from === 60 && to === 63) to = 62;
-  if (from === 60 && to === 56) to = 58;
+  const movingPiece = pos?.board.get(from);
+  if (!pos || movingPiece?.role === "king") {
+    if (from === 4 && to === 7) to = 6;
+    if (from === 4 && to === 0) to = 2;
+    if (from === 60 && to === 63) to = 62;
+    if (from === 60 && to === 56) to = 58;
+  }
 
   let promotion: Exclude<Role, "pawn" | "king"> | undefined = undefined;
   if (uciStr.length === 5) {

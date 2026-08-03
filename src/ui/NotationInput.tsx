@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useGameStore } from "../store";
 import { GameController } from "../store/controller";
 import { positionAfter, legalMoves, toSan } from "../core/rules";
@@ -14,18 +14,33 @@ export function NotationInput({ controller }: NotationInputProps) {
   const [isShaking, setIsShaking] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const currentPos = positionAfter(
-    state.initialFen,
-    state.history.slice(0, state.cursor).map((h) => h.move),
-  );
-
-  const legals = legalMoves(currentPos);
-  const notationState = matchPrefix(buffer, legals, currentPos);
-
   const isEngineThinking =
     state.status.kind === "engine-thinking" ||
     state.status.kind === "engine-delaying";
   const isPremoveMode = isEngineThinking;
+
+  const currentPos = useMemo(
+    () =>
+      positionAfter(
+        state.initialFen,
+        state.history.slice(0, state.cursor).map((h) => h.move),
+      ),
+    [state.initialFen, state.history, state.cursor],
+  );
+
+  // While the engine is thinking the side to move is the engine's, so matching
+  // against `currentPos` offers the engine's moves rather than the human's.
+  // Typed premoves are matched on a turn-swapped board so SAN still renders;
+  // the fully relaxed premove set (rays through enemy pieces) is pointer-only.
+  const matchPos = useMemo(() => {
+    if (!isPremoveMode || currentPos.turn === state.humanColor) return currentPos;
+    const swapped = currentPos.clone();
+    swapped.turn = state.humanColor;
+    return swapped;
+  }, [currentPos, isPremoveMode, state.humanColor]);
+
+  const legals = useMemo(() => legalMoves(matchPos), [matchPos]);
+  const notationState = matchPrefix(buffer, legals, matchPos);
 
   useEffect(() => {
     // Keep focused

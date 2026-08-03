@@ -21,10 +21,10 @@ test.describe("Game Controls E2E", () => {
     // Verify game reset to initial status
     await expect(page.locator("main").locator("text=Your move")).toBeVisible();
 
-    // Click Take back button
+    // Take back is disabled on a fresh game: there is no human ply to undo.
     const takebackButton = page.getByRole("button", { name: /^Take back$/i });
     await expect(takebackButton).toBeVisible();
-    await takebackButton.click();
+    await expect(takebackButton).toBeDisabled();
   });
 
   test("opens and closes settings modal panel", async ({ page }) => {

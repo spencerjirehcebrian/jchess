@@ -4,11 +4,12 @@ import { createScene } from "./scene";
 import { meshBoard } from "./voxel/mesher";
 import { PieceManager } from "./pieces";
 import { OverlayManager } from "./overlay";
-import { raycastToSquare } from "./picking";
+import { raycastToSquare, squareToWorld } from "./picking";
 import { AnimationEngine, PieceAnimTarget } from "./animation/engine";
 import { Square } from "../core/types";
 import { Store } from "../store";
 import { positionAfter, legalMovesFrom } from "../core/rules";
+import { premoveDestinations, hypotheticalPosition } from "../core/premove";
 
 export class Renderer {
   private canvas: HTMLCanvasElement;
@@ -131,6 +132,11 @@ export class Renderer {
 
     let lastBoardSize = getState()?.boardSize;
     let prevCursor = -1;
+    // The store notifies on every field, but only these affect what is on the
+    // board. Rebuilding (and cancelling animations) on unrelated writes killed
+    // every human move's animation and replayed the whole game each time.
+    let prevRenderKey = "";
+    let cachedPos: ReturnType<typeof positionAfter> | null = null;
 
     const updateFromStore = (stateArg?: any) => {
       const state = stateArg && "history" in stateArg ? stateArg : getState();
@@ -168,18 +174,27 @@ export class Renderer {
       const currentCursor = state.cursor;
       const currentHistoryLength = state.history.length;
 
+      const renderKey = `${currentCursor}:${currentHistoryLength}:${state.initialFen}:${this.boardFlipped}`;
+      const positionChanged = renderKey !== prevRenderKey;
+      prevRenderKey = renderKey;
+
+      if (positionChanged || cachedPos === null) {
+        cachedPos = positionAfter(
+          state.initialFen,
+          historyToRender.map((h: any) => h.move),
+        );
+      }
+      const currentPos = cachedPos;
+
       const isLiveSingleMove =
         prevCursor >= 0 &&
         currentCursor === currentHistoryLength &&
         currentCursor === prevCursor + 1 &&
         historyToRender.length > 0;
 
-      const currentPos = positionAfter(
-        state.initialFen,
-        historyToRender.map((h: any) => h.move),
-      );
-
-      if (isLiveSingleMove) {
+      if (!positionChanged) {
+        // Overlay-only update: leave any in-flight animation alone.
+      } else if (isLiveSingleMove) {
         const lastEntry = historyToRender[historyToRender.length - 1];
         const lastMove = lastEntry.move;
         const prevHistory = historyToRender.slice(0, historyToRender.length - 1);
@@ -318,11 +333,23 @@ export class Renderer {
         this.boardFlipped,
       );
 
+      const inPremoveMode =
+        state.status?.kind === "engine-thinking" ||
+        state.status?.kind === "engine-delaying";
+
       if (state.selectedSquare !== null) {
-        const legals = legalMovesFrom(currentPos, state.selectedSquare);
+        // While the engine is thinking the board shows relaxed premove
+        // destinations, not legal moves for the side to move (the engine).
+        const dests = inPremoveMode
+          ? premoveDestinations(
+              hypotheticalPosition(currentPos, state.premoves ?? []),
+              state.selectedSquare,
+            )
+          : legalMovesFrom(currentPos, state.selectedSquare).map((m) => m.to);
         this.overlayManager.setLegalMoveDots(
-          legals.map((m) => m.to),
+          dests,
           this.boardFlipped,
+          inPremoveMode ? "premove" : "legal",
         );
       } else {
         this.overlayManager.setLegalMoveDots([], this.boardFlipped);
@@ -354,8 +381,11 @@ export class Renderer {
 
   private frame(t: number): void {
     this.rafHandle = null;
+    // update() steps the physics with the real frame dt; getBoardTransform()
+    // is a pure read of that step's result. Calling both used to integrate the
+    // spring twice per frame, the second time with a hard-coded 16.67ms dt.
     const isAnimating = this.animEngine.update(t);
-    const physics = this.animEngine.getBoardTransform(t);
+    const physics = this.animEngine.getBoardTransform();
 
     this.boardContainerGroup.position.copy(physics.positionOffset);
     this.boardContainerGroup.rotation.copy(physics.rotationOffset);
@@ -423,6 +453,32 @@ export class Renderer {
     this.camera.updateProjectionMatrix();
 
     this.requestRender();
+  }
+
+  /**
+   * Canvas-relative pixel position of a square's centre, for anchoring DOM
+   * overlays (the promotion picker) to the board.
+   */
+  squareToScreen(square: Square): { x: number; y: number } {
+    const world = squareToWorld(square, this.boardFlipped);
+    const vec = new THREE.Vector3(world.x, 0, world.z);
+    vec.add(this.boardContainerGroup.position);
+    vec.project(this.camera);
+
+    const rect = this.canvas.getBoundingClientRect();
+    const width = rect.width || this.canvas.clientWidth;
+    const height = rect.height || this.canvas.clientHeight;
+    return {
+      x: ((vec.x + 1) / 2) * width,
+      y: ((1 - vec.y) / 2) * height,
+    };
+  }
+
+  /** Briefly highlights squares in the error hue (failed premove drain). */
+  flashSquares(squares: Square[], durationMs = 300) {
+    this.overlayManager.flashSquares(squares, this.boardFlipped, durationMs, () =>
+      this.requestRender(),
+    );
   }
 
   cancelAllAnimations(): void {

@@ -5,7 +5,11 @@ import {
   legalMoves,
   positionAfter,
 } from "../../src/core/rules";
-import { premoveDestinations, generatePremoves } from "../../src/core/premove";
+import {
+  premoveDestinations,
+  generatePremoves,
+  hypotheticalPosition,
+} from "../../src/core/premove";
 import { nameToSquare } from "../../src/core/types";
 
 describe("premove module", () => {
@@ -70,6 +74,49 @@ describe("premove module", () => {
     const dests = premoveDestinations(pos, e1);
     expect(dests).toContain(nameToSquare("g1")!);
     expect(dests).toContain(nameToSquare("c1")!);
+  });
+
+  it("hypotheticalPosition applies queued premoves without passing the turn", () => {
+    const pos = positionFromFen(FIXTURE_FENS.START);
+    const e2 = nameToSquare("e2")!;
+    const e4 = nameToSquare("e4")!;
+
+    const after = hypotheticalPosition(pos, [{ from: e2, to: e4 }]);
+    expect(after.board.get(e2)).toBeUndefined();
+    expect(after.board.get(e4)?.role).toBe("pawn");
+    expect(after.turn).toBe("white"); // unchanged: it is still the human's chain
+    // The original position is untouched.
+    expect(pos.board.get(e2)?.role).toBe("pawn");
+
+    // A chained premove sees the vacated square.
+    const d1 = nameToSquare("d1")!;
+    const h5 = nameToSquare("h5")!;
+    expect(premoveDestinations(after, d1)).toContain(h5);
+    expect(premoveDestinations(pos, d1)).not.toContain(h5);
+  });
+
+  it("hypotheticalPosition moves the rook for a castling premove", () => {
+    const pos = positionFromFen(FIXTURE_FENS.CASTLE_ALL_RIGHTS);
+    const e1 = nameToSquare("e1")!;
+    const g1 = nameToSquare("g1")!;
+    const h1 = nameToSquare("h1")!;
+    const f1 = nameToSquare("f1")!;
+
+    const after = hypotheticalPosition(pos, [{ from: e1, to: g1 }]);
+    expect(after.board.get(g1)?.role).toBe("king");
+    expect(after.board.get(f1)?.role).toBe("rook");
+    expect(after.board.get(h1)).toBeUndefined();
+  });
+
+  it("hypotheticalPosition promotes a queued promotion premove", () => {
+    const pos = positionFromFen(FIXTURE_FENS.PROMOTION_PUSH);
+    const e7 = nameToSquare("e7")!;
+    const e8 = nameToSquare("e8")!;
+
+    const after = hypotheticalPosition(pos, [
+      { from: e7, to: e8, promotion: "knight" },
+    ]);
+    expect(after.board.get(e8)?.role).toBe("knight");
   });
 
   it("superset property test: legal moves after any legal opponent reply are in relaxed premove set", () => {
