@@ -3,6 +3,7 @@ import { Move, Color, AppError } from '../core/types'
 import { Engine } from '../engine/types'
 import { positionAfter, isLegal, toSan, outcome, toUci, fromUci, toFen } from '../core/rules'
 import { getDifficulty } from '../core/difficulty'
+import { audioEngine } from '../audio'
 import { getConfig } from '../config'
 
 export class GameController {
@@ -63,6 +64,7 @@ export class GameController {
       // Add to premove queue if within maxPremoves limit
       const config = getConfig()
       if (state.premoves.length < config.maxPremoves) {
+        audioEngine.playSound('premove')
         this.store.setState((prev) => ({
           premoves: [...prev.premoves, move]
         }))
@@ -109,6 +111,10 @@ export class GameController {
     const gameOutcome = outcome(posAfter, newHistory)
 
     if (gameOutcome) {
+      if (gameOutcome.winner === state.humanColor) audioEngine.playSound('victory')
+      else if (gameOutcome.winner && gameOutcome.winner !== state.humanColor) audioEngine.playSound('defeat')
+      else audioEngine.playSound('draw')
+
       this.store.setState(() => ({
         history: newHistory,
         cursor: newHistory.length,
@@ -117,6 +123,10 @@ export class GameController {
       }))
       return true
     }
+
+    if (isCheck) audioEngine.playSound('check')
+    else if (captured) audioEngine.playSound('capture')
+    else audioEngine.playSound('move')
 
     this.store.setState(() => ({
       history: newHistory,
