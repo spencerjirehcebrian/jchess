@@ -147,4 +147,18 @@ export class OverlayManager {
       (this.legalDotsPool[0]!.material as THREE.MeshBasicMaterial).color = detailColor;
     }
   }
+
+  dispose() {
+    this.impactRingMesh.geometry.dispose();
+    (this.impactRingMesh.material as THREE.Material).dispose();
+    this.lastMoveFromQuad.geometry.dispose();
+    (this.lastMoveFromQuad.material as THREE.Material).dispose();
+    this.lastMoveToQuad.material && (this.lastMoveToQuad.material as THREE.Material).dispose();
+    this.selectedSquareQuad.material && (this.selectedSquareQuad.material as THREE.Material).dispose();
+    if (this.legalDotsPool.length > 0) {
+      this.legalDotsPool[0]!.geometry.dispose();
+      (this.legalDotsPool[0]!.material as THREE.Material).dispose();
+    }
+    this.legalDotsPool = [];
+  }
 }

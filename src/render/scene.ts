@@ -7,6 +7,7 @@ export function createScene(theme: Theme): {
   camera: THREE.OrthographicCamera;
   dirLight: THREE.DirectionalLight;
   boardMesh: THREE.Mesh;
+  boardContainerGroup: THREE.Group;
 } {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(theme.background);
@@ -58,19 +59,24 @@ export function createScene(theme: Theme): {
 
   scene.add(dirLight);
 
-  // Board mesh
+  // Board Container Group & Board mesh
+  const boardContainerGroup = new THREE.Group();
+  boardContainerGroup.name = "boardContainerGroup";
+  scene.add(boardContainerGroup);
+
   const boardGeo = meshBoard(theme);
   const boardMat = new THREE.MeshLambertMaterial({ vertexColors: true });
   const boardMesh = new THREE.Mesh(boardGeo, boardMat);
   boardMesh.receiveShadow = true;
   boardMesh.name = "boardMesh";
 
-  scene.add(boardMesh);
+  boardContainerGroup.add(boardMesh);
 
   return {
     scene,
     camera,
     dirLight,
     boardMesh,
+    boardContainerGroup,
   };
 }

@@ -8,6 +8,7 @@ describe("AnimationEngine unit tests", () => {
     const mesh = new THREE.Mesh();
     const shadowQuad = new THREE.Mesh();
 
+    const startT = performance.now();
     engine.animateMove(
       {
         mesh,
@@ -22,13 +23,18 @@ describe("AnimationEngine unit tests", () => {
     expect(engine.isAnimating()).toBe(true);
 
     // Midpoint update (t=0.5)
-    engine.update(performance.now() + 100);
+    engine.update(startT + 100);
     expect(mesh.position.y).toBeGreaterThan(0.4); // Lifted parabolic arc
 
     // Completion update (t=1.0)
-    engine.update(performance.now() + 300);
-    expect(engine.isAnimating()).toBe(false);
+    engine.update(startT + 250);
     expect(mesh.position.y).toBe(0);
+
+    // Step physics forward until spring recoil settles
+    for (let t = startT + 250; t <= startT + 1000; t += 50) {
+      engine.update(t);
+    }
+    expect(engine.isAnimating()).toBe(false);
   });
 
   it("handles knight high-arc hopping", () => {
@@ -36,6 +42,7 @@ describe("AnimationEngine unit tests", () => {
     const mesh = new THREE.Mesh();
     const shadowQuad = new THREE.Mesh();
 
+    const startT = performance.now();
     engine.animateMove(
       {
         mesh,
@@ -49,7 +56,7 @@ describe("AnimationEngine unit tests", () => {
     );
 
     // Midpoint update (t=0.5)
-    engine.update(performance.now() + 100);
+    engine.update(startT + 100);
     expect(mesh.position.y).toBeGreaterThan(0.6); // Knight high arc (~0.65)
   });
 
@@ -65,6 +72,7 @@ describe("AnimationEngine unit tests", () => {
     );
 
     let onCompleteCalled = false;
+    const startT = performance.now();
 
     engine.animateMove(
       {
@@ -85,12 +93,12 @@ describe("AnimationEngine unit tests", () => {
     );
 
     // After impact moment (t=0.5 -> rawT=0.5)
-    engine.update(performance.now() + 100);
+    engine.update(startT + 100);
     expect(capturedMesh.position.y).toBeLessThan(0); // Sinks into board
     expect(impactRing.visible).toBe(true);
 
     // Complete
-    engine.update(performance.now() + 300);
+    engine.update(startT + 250);
     expect(onCompleteCalled).toBe(true);
     expect(impactRing.visible).toBe(false);
   });
@@ -102,6 +110,7 @@ describe("AnimationEngine unit tests", () => {
     const rookMesh = new THREE.Mesh();
     const rookShadow = new THREE.Mesh();
 
+    const startT = performance.now();
     engine.animateMove(
       {
         mesh: kingMesh,
@@ -119,12 +128,14 @@ describe("AnimationEngine unit tests", () => {
     );
 
     // Midpoint update
-    engine.update(performance.now() + 100);
+    engine.update(startT + 100);
     expect(kingMesh.position.x).not.toBe(0);
     expect(rookMesh.position.x).not.toBe(0);
 
-    // Completion
-    engine.update(performance.now() + 300);
+    // Completion & physics settlement
+    for (let t = startT + 250; t <= startT + 1000; t += 50) {
+      engine.update(t);
+    }
     expect(engine.isAnimating()).toBe(false);
   });
 

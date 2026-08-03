@@ -1,6 +1,9 @@
 import * as THREE from "three";
-import { Square } from "../../core/types";
+import { Square, Role, Color } from "../../core/types";
 import { squareToWorld } from "../picking";
+import { Palette, THEMES } from "../voxel/palette";
+import { VoxelDebrisManager } from "./debris";
+import { BoardPhysicsEngine } from "./shake";
 
 export interface PieceAnimTarget {
   mesh: THREE.Mesh;
@@ -12,6 +15,9 @@ export interface PieceAnimTarget {
   isCapture?: boolean | undefined;
   capturedMesh?: THREE.Mesh | undefined;
   capturedShadowQuad?: THREE.Mesh | undefined;
+  capturedRole?: Role | undefined;
+  capturedColor?: Color | undefined;
+  palette?: Palette | undefined;
   isCastle?: boolean | undefined;
   rookMesh?: THREE.Mesh | undefined;
   rookShadowQuad?: THREE.Mesh | undefined;
@@ -29,11 +35,16 @@ interface ActiveAnim {
   rookEndPos?: THREE.Vector3 | undefined;
   startTime: number;
   durationMs: number;
+  hasExploded?: boolean | undefined;
+  hasLanded?: boolean | undefined;
   onComplete?: (() => void) | undefined;
 }
 
 export class AnimationEngine {
   private activeAnims: ActiveAnim[] = [];
+  public readonly debrisManager = new VoxelDebrisManager();
+  public readonly physicsEngine = new BoardPhysicsEngine();
+  private lastUpdateTime = performance.now();
 
   animateMove(
     target: PieceAnimTarget,
@@ -75,7 +86,17 @@ export class AnimationEngine {
   }
 
   update(now = performance.now()): boolean {
-    if (this.activeAnims.length === 0) return false;
+    const dt = Math.max(0.001, Math.min(0.1, (now - this.lastUpdateTime) / 1000));
+    this.lastUpdateTime = now;
+
+    // Update particles
+    this.debrisManager.update(dt);
+
+    if (this.activeAnims.length === 0) {
+      this.physicsEngine.resetTilt();
+      const physicsState = this.physicsEngine.update(now, dt * 1000);
+      return physicsState.isActive;
+    }
 
     const remaining: ActiveAnim[] = [];
 
@@ -90,22 +111,27 @@ export class AnimationEngine {
       const currentX = anim.startPos.x + (anim.endPos.x - anim.startPos.x) * t;
       const currentZ = anim.startPos.z + (anim.endPos.z - anim.startPos.z) * t;
 
+      // Motion vector calculations for board weight tilt
+      const dx = anim.endPos.x - anim.startPos.x;
+      const dz = anim.endPos.z - anim.startPos.z;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      const ux = dist > 0.001 ? dx / dist : 0;
+      const uz = dist > 0.001 ? dz / dist : 0;
+
+      // Pass piece move trajectory to dynamic board tilt physics engine
+      if (dist > 0.001) {
+        this.physicsEngine.setMoveTilt(ux, uz, rawT);
+      }
+
       // Parabolic arc for Y lift: Knights jump higher (0.65 vs 0.45)
       const maxArc = anim.target.isKnight ? 0.65 : 0.45;
       const arcY = Math.sin(Math.PI * rawT) * maxArc;
 
       anim.target.mesh.position.set(currentX, arcY, currentZ);
-
-      // Dynamic forward tilt into motion vector
-      const dx = anim.endPos.x - anim.startPos.x;
-      const dz = anim.endPos.z - anim.startPos.z;
-      const dist = Math.sqrt(dx * dx + dz * dz);
-
       anim.target.mesh.rotation.set(0, 0, 0);
 
+      // Forward lean tilt into move direction
       if (dist > 0.001) {
-        const ux = dx / dist;
-        const uz = dz / dist;
         const tiltFactor = Math.sin(Math.PI * rawT) * 0.22;
         anim.target.mesh.rotation.x = -uz * tiltFactor;
         anim.target.mesh.rotation.z = ux * tiltFactor;
@@ -143,17 +169,37 @@ export class AnimationEngine {
         anim.target.rookShadowQuad.position.set(rookX, 0.01, rookZ);
       }
 
-      // Handle Captured Piece physics (impact hit around rawT=0.35, tumble, scale down, sink)
-      if (anim.target.isCapture && anim.target.capturedMesh) {
-        if (rawT >= 0.35) {
+      // Handle Violent Captured Piece physics & explosive voxel breakup (impact hit around rawT=0.35)
+      if (anim.target.isCapture) {
+        if (rawT >= 0.35 && !anim.hasExploded) {
+          anim.hasExploded = true;
+
+          // Trigger Violent Board Shake on Capture Impact
+          this.physicsEngine.triggerShake(1.3, 380, now);
+
+          // Spawn Explosive Voxel Shatter Debris
+          const palette =
+            anim.target.palette ??
+            (anim.target.capturedColor === "white"
+              ? THEMES.oxide!.white
+              : THEMES.oxide!.black);
+
+          this.debrisManager.spawnExplosion(
+            anim.endPos,
+            palette,
+            anim.target.capturedRole ?? "pawn",
+          );
+        }
+
+        if (anim.target.capturedMesh && rawT >= 0.35) {
           const tumbleT = (rawT - 0.35) / 0.65;
           const capY = -tumbleT * 1.5;
-          const capScale = Math.max(0, 1 - tumbleT);
+          const capScale = Math.max(0, 1 - tumbleT * 1.2);
 
           anim.target.capturedMesh.position.y = capY;
           anim.target.capturedMesh.scale.set(capScale, capScale, capScale);
-          anim.target.capturedMesh.rotation.x = tumbleT * Math.PI * 0.6;
-          anim.target.capturedMesh.rotation.z = tumbleT * Math.PI * 0.4;
+          anim.target.capturedMesh.rotation.x = tumbleT * Math.PI * 1.2;
+          anim.target.capturedMesh.rotation.z = tumbleT * Math.PI * 0.8;
 
           if (anim.target.capturedShadowQuad) {
             anim.target.capturedShadowQuad.position.y = capY;
@@ -164,16 +210,16 @@ export class AnimationEngine {
           }
         }
 
-        // Impact Ring visual burst effect on target square
+        // Impact Ring visual shockwave burst effect on target square
         if (anim.target.impactRing) {
-          if (rawT >= 0.35 && rawT <= 0.9) {
-            const ringT = (rawT - 0.35) / 0.55;
-            const ringScale = 0.2 + ringT * 1.2;
+          if (rawT >= 0.35 && rawT <= 0.95) {
+            const ringT = (rawT - 0.35) / 0.6;
+            const ringScale = 0.2 + ringT * 1.8;
             const ringOpacity = Math.max(0, 1.0 - ringT);
 
             anim.target.impactRing.visible = true;
             anim.target.impactRing.scale.set(ringScale, ringScale, ringScale);
-            (anim.target.impactRing.material as THREE.MeshBasicMaterial).opacity = ringOpacity * 0.65;
+            (anim.target.impactRing.material as THREE.MeshBasicMaterial).opacity = ringOpacity * 0.85;
           } else {
             anim.target.impactRing.visible = false;
           }
@@ -191,6 +237,15 @@ export class AnimationEngine {
         anim.target.shadowQuad.position.set(anim.endPos.x, 0.01, anim.endPos.z);
         anim.target.shadowQuad.scale.set(1, 1, 1);
         (anim.target.shadowQuad.material as THREE.MeshBasicMaterial).opacity = 0.45;
+
+        // Apply impact recoil & crisp landing thud shake
+        if (!anim.hasLanded) {
+          anim.hasLanded = true;
+          this.physicsEngine.triggerImpactRecoil(ux, uz, 0.07);
+          if (!anim.target.isCapture) {
+            this.physicsEngine.triggerShake(0.35, 160, now);
+          }
+        }
 
         if (
           anim.target.isCastle &&
@@ -214,7 +269,12 @@ export class AnimationEngine {
     }
 
     this.activeAnims = remaining;
-    return this.activeAnims.length > 0;
+    this.physicsEngine.update(now, dt * 1000);
+    return true;
+  }
+
+  getBoardTransform(now = performance.now()) {
+    return this.physicsEngine.update(now);
   }
 
   cancelAll() {
@@ -243,10 +303,14 @@ export class AnimationEngine {
       }
     }
     this.activeAnims = [];
+    this.debrisManager.clear();
+    this.physicsEngine.resetTilt();
   }
 
   isAnimating(): boolean {
-    return this.activeAnims.length > 0;
+    return (
+      this.activeAnims.length > 0 ||
+      this.physicsEngine.update().isActive
+    );
   }
 }
-

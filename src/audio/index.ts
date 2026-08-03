@@ -1,5 +1,11 @@
 export type SoundEvent =
-  "move" | "capture" | "check" | "premove" | "victory" | "defeat" | "draw";
+  | "move"
+  | "capture"
+  | "check"
+  | "premove"
+  | "victory"
+  | "defeat"
+  | "draw";
 
 export class AudioEngine {
   private ctx: AudioContext | null = null;
@@ -81,27 +87,57 @@ export class AudioEngine {
       }
 
       case "capture": {
-        // Heavier thud with sub-bass
+        // Heavy sub-bass thud + violent crunch noise impact
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         const filter = ctx.createBiquadFilter();
 
-        osc.type = "sine";
-        osc.frequency.setValueAtTime(180, now);
-        osc.frequency.exponentialRampToValueAtTime(60, now + 0.06);
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(240, now);
+        osc.frequency.exponentialRampToValueAtTime(40, now + 0.09);
 
         filter.type = "lowpass";
-        filter.frequency.setValueAtTime(800, now);
+        filter.frequency.setValueAtTime(1000, now);
 
-        gain.gain.setValueAtTime(0.9, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+        gain.gain.setValueAtTime(0.95, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
 
         osc.connect(filter);
         filter.connect(gain);
         gain.connect(this.masterGain);
 
         osc.start(now);
-        osc.stop(now + 0.06);
+        osc.stop(now + 0.09);
+
+        // Synthesize short noise crunch burst for shatter effect
+        try {
+          const bufferSize = ctx.sampleRate * 0.05; // 50ms noise
+          const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+          const data = buffer.getChannelData(0);
+          for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;
+          }
+
+          const noise = ctx.createBufferSource();
+          noise.buffer = buffer;
+
+          const noiseFilter = ctx.createBiquadFilter();
+          noiseFilter.type = "bandpass";
+          noiseFilter.frequency.setValueAtTime(1400, now);
+
+          const noiseGain = ctx.createGain();
+          noiseGain.gain.setValueAtTime(0.6, now);
+          noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+
+          noise.connect(noiseFilter);
+          noiseFilter.connect(noiseGain);
+          noiseGain.connect(this.masterGain);
+
+          noise.start(now);
+          noise.stop(now + 0.05);
+        } catch {
+          // Ignore audio buffer fallback
+        }
         break;
       }
 

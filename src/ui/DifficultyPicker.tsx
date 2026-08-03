@@ -119,6 +119,8 @@ export function DifficultyPicker({ controller }: DifficultyPickerProps) {
               <button
                 key={lvl.id}
                 disabled={disabled}
+                aria-pressed={isSelected}
+                aria-label={`Select level ${lvl.id} ${lvl.label}`}
                 onClick={() => {
                   if (controller && !disabled) {
                     controller.startNewGame({ difficulty: lvl.id });

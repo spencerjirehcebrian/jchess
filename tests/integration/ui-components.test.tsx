@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, act } from '@testing-library/react'
 import { useGameStore, initialGameState } from '../../src/store'
 import { GameController } from '../../src/store/controller'
 import { StatusBar } from '../../src/ui/StatusBar'
@@ -118,9 +118,13 @@ describe('UI Component Integration Tests', () => {
     expect(useGameStore.getState().boardSize).toBe('large')
   })
 
-  it('renders main App layout without crashing', () => {
-    const { container } = render(<App />)
+  it('renders main App layout without crashing', async () => {
+    let container: HTMLElement
+    await act(async () => {
+      const res = render(<App />)
+      container = res.container
+    })
     expect(screen.getByText('jchess')).toBeTruthy()
-    expect(container.querySelector('canvas')).toBeTruthy()
+    expect(container!.querySelector('canvas')).toBeTruthy()
   })
 })

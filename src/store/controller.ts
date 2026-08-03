@@ -218,10 +218,19 @@ export class GameController {
           },
         }));
         await new Promise((r) => setTimeout(r, delayMs));
+        if (this.state.status.kind !== "engine-delaying") {
+          return;
+        }
       }
 
       this.applyEngineMove(parsedMove);
     } catch (err: unknown) {
+      if (
+        this.state.status.kind !== "engine-thinking" &&
+        this.state.status.kind !== "engine-delaying"
+      ) {
+        return;
+      }
       const appErr: AppError = {
         code: "ENGINE_SEARCH_FAILED",
         message: err instanceof Error ? err.message : "Engine search failed",

@@ -31,27 +31,52 @@ function getDB(): Promise<IDBPDatabase | null> {
 }
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingStateToSave: GameState | null = null;
+
+export async function flushActiveGame(state?: GameState): Promise<void> {
+  const targetState = state ?? pendingStateToSave;
+  if (!targetState) return;
+  if (saveTimer !== null) {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+  }
+  pendingStateToSave = null;
+  const db = await getDB();
+  if (!db) return;
+
+  try {
+    const record: SavedGameRecord = {
+      id: "active",
+      state: targetState,
+      updatedAt: Date.now(),
+    };
+    await db.put("active-game", record);
+  } catch {
+    // Storage unavailable
+  }
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden" && pendingStateToSave) {
+      flushActiveGame();
+    }
+  });
+  window.addEventListener("beforeunload", () => {
+    if (pendingStateToSave) {
+      flushActiveGame();
+    }
+  });
+}
 
 export async function saveActiveGame(state: GameState): Promise<void> {
+  pendingStateToSave = state;
   if (saveTimer !== null) {
     clearTimeout(saveTimer);
   }
 
-  saveTimer = setTimeout(async () => {
-    saveTimer = null;
-    const db = await getDB();
-    if (!db) return;
-
-    try {
-      const record: SavedGameRecord = {
-        id: "active",
-        state,
-        updatedAt: Date.now(),
-      };
-      await db.put("active-game", record);
-    } catch {
-      // Storage unavailable
-    }
+  saveTimer = setTimeout(() => {
+    flushActiveGame();
   }, 500);
 }
 

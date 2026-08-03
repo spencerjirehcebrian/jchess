@@ -27,14 +27,16 @@ export class PieceManager {
   private activePieces = new Map<string, RenderedPiece>();
   private geometryCache = new Map<string, THREE.BufferGeometry>();
   private shadowMaterial: THREE.MeshBasicMaterial;
+  private shadowGeo: THREE.PlaneGeometry;
+  private sharedMaterial: THREE.MeshLambertMaterial;
 
   constructor(theme: Theme) {
     this.piecesGroup.name = "piecesGroup";
     this.shadowQuadsGroup.name = "shadowQuadsGroup";
 
-    // Soft contact shadow material
-    const shadowGeo = new THREE.PlaneGeometry(0.85, 0.85);
-    shadowGeo.rotateX(-Math.PI / 2);
+    // Soft contact shadow geometry & material
+    this.shadowGeo = new THREE.PlaneGeometry(0.85, 0.85);
+    this.shadowGeo.rotateX(-Math.PI / 2);
 
     this.shadowMaterial = new THREE.MeshBasicMaterial({
       color: 0x000000,
@@ -42,6 +44,8 @@ export class PieceManager {
       opacity: 0.45,
       depthWrite: false,
     });
+
+    this.sharedMaterial = new THREE.MeshLambertMaterial({ vertexColors: true });
 
     this.precacheGeometries(theme);
   }
@@ -102,18 +106,6 @@ export class PieceManager {
       }
     }
 
-    const materialCache = new Map<string, THREE.MeshLambertMaterial>();
-
-    const getMaterial = () => {
-      if (!materialCache.has("mat")) {
-        materialCache.set(
-          "mat",
-          new THREE.MeshLambertMaterial({ vertexColors: true }),
-        );
-      }
-      return materialCache.get("mat")!;
-    };
-
     // Assign stable IDs based on initial role & file/rank or square
     currentPieces.forEach(({ role, color }, sq) => {
       let matchedPiece: RenderedPiece | null = null;
@@ -164,15 +156,13 @@ export class PieceManager {
         const id = `${color}-${role}-${sq}-${Math.random().toString(36).slice(2, 6)}`;
         const geoKey = `${color}-${role}`;
         const geo = this.geometryCache.get(geoKey)!;
-        const mesh = new THREE.Mesh(geo, getMaterial());
+        const mesh = new THREE.Mesh(geo, this.sharedMaterial);
         mesh.castShadow = true;
         mesh.receiveShadow = false;
         mesh.position.set(worldPos.x, 0, worldPos.z);
         mesh.scale.set(scale, scale, scale);
 
-        const shadowGeo = new THREE.PlaneGeometry(0.85, 0.85);
-        shadowGeo.rotateX(-Math.PI / 2);
-        const shadowQuad = new THREE.Mesh(shadowGeo, this.shadowMaterial);
+        const shadowQuad = new THREE.Mesh(this.shadowGeo, this.shadowMaterial);
         shadowQuad.position.set(worldPos.x, 0.01, worldPos.z);
         shadowQuad.scale.set(scale, scale, scale);
 
@@ -198,7 +188,6 @@ export class PieceManager {
       if (!usedIds.has(id)) {
         this.piecesGroup.remove(active.mesh);
         this.shadowQuadsGroup.remove(active.shadowQuad);
-        active.mesh.geometry.dispose();
         this.activePieces.delete(id);
       }
     }
@@ -216,12 +205,22 @@ export class PieceManager {
     if (active) {
       this.piecesGroup.remove(active.mesh);
       this.shadowQuadsGroup.remove(active.shadowQuad);
-      active.mesh.geometry.dispose();
       this.activePieces.delete(id);
     }
   }
 
   getActivePieces(): RenderedPiece[] {
     return Array.from(this.activePieces.values());
+  }
+
+  dispose() {
+    this.shadowGeo.dispose();
+    this.shadowMaterial.dispose();
+    this.sharedMaterial.dispose();
+    for (const geo of this.geometryCache.values()) {
+      geo.dispose();
+    }
+    this.geometryCache.clear();
+    this.activePieces.clear();
   }
 }

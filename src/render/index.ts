@@ -17,6 +17,7 @@ export class Renderer {
   private camera: THREE.OrthographicCamera;
   private scene: THREE.Scene;
   private boardMesh: THREE.Mesh;
+  private boardContainerGroup: THREE.Group;
   private pieceManager: PieceManager;
   private overlayManager: OverlayManager;
   private animEngine = new AnimationEngine();
@@ -24,6 +25,7 @@ export class Renderer {
 
   private dirty = true;
   private rafHandle: number | null = null;
+  private resizeRafHandle: number | null = null;
   private boardFlipped = false;
   private resizeObserver: ResizeObserver | null = null;
   private hoveredSquare: Square | null = null;
@@ -56,19 +58,22 @@ export class Renderer {
       } as unknown as THREE.WebGLRenderer;
     }
 
-    const { scene, camera, boardMesh } = createScene(this.theme);
+    const { scene, camera, boardMesh, boardContainerGroup } = createScene(this.theme);
     this.scene = scene;
     this.camera = camera;
     this.boardMesh = boardMesh;
+    this.boardContainerGroup = boardContainerGroup;
 
     applyThemeToCss(this.theme);
 
     this.pieceManager = new PieceManager(this.theme);
-    this.scene.add(this.pieceManager.piecesGroup);
-    this.scene.add(this.pieceManager.shadowQuadsGroup);
+    this.boardContainerGroup.add(this.pieceManager.piecesGroup);
+    this.boardContainerGroup.add(this.pieceManager.shadowQuadsGroup);
 
     this.overlayManager = new OverlayManager(this.theme);
-    this.scene.add(this.overlayManager.group);
+    this.boardContainerGroup.add(this.overlayManager.group);
+
+    this.boardContainerGroup.add(this.animEngine.debrisManager.group);
 
     this.handlePointerDown = this.handlePointerDown.bind(this);
     this.handlePointerUp = this.handlePointerUp.bind(this);
@@ -97,6 +102,11 @@ export class Renderer {
       this.rafHandle = null;
     }
 
+    if (this.resizeRafHandle !== null) {
+      cancelAnimationFrame(this.resizeRafHandle);
+      this.resizeRafHandle = null;
+    }
+
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
       this.resizeObserver = null;
@@ -106,6 +116,9 @@ export class Renderer {
     this.canvas.removeEventListener("pointerup", this.handlePointerUp);
     this.canvas.removeEventListener("pointermove", this.handlePointerMove);
 
+    this.animEngine.debrisManager.dispose();
+    this.pieceManager.dispose();
+    this.overlayManager.dispose();
     this.webglRenderer.dispose();
   }
 
@@ -133,14 +146,22 @@ export class Renderer {
         lastBoardSize = state.boardSize;
         this.currentBoardSize = state.boardSize ?? "full";
         this.resize();
+
+        if (this.resizeRafHandle !== null) {
+          cancelAnimationFrame(this.resizeRafHandle);
+          this.resizeRafHandle = null;
+        }
+
         let frameCount = 0;
         const animateResize = () => {
           this.resize();
           if (++frameCount < 15) {
-            requestAnimationFrame(animateResize);
+            this.resizeRafHandle = requestAnimationFrame(animateResize);
+          } else {
+            this.resizeRafHandle = null;
           }
         };
-        requestAnimationFrame(animateResize);
+        this.resizeRafHandle = requestAnimationFrame(animateResize);
       }
 
       const historyToRender = state.history.slice(0, state.cursor);
@@ -234,7 +255,7 @@ export class Renderer {
             shadowQuad: movingRendered.shadowQuad,
             fromSquare: lastMove.from,
             toSquare: lastMove.to,
-            durationMs: 130,
+            durationMs: 220,
             isKnight,
             isCapture: !!capturedRendered,
             isCastle,
@@ -244,6 +265,12 @@ export class Renderer {
           if (capturedRendered) {
             animTarget.capturedMesh = capturedRendered.mesh;
             animTarget.capturedShadowQuad = capturedRendered.shadowQuad;
+            animTarget.capturedRole = capturedRendered.role;
+            animTarget.capturedColor = capturedRendered.color;
+            animTarget.palette =
+              capturedRendered.color === "white"
+                ? this.theme.white
+                : this.theme.black;
             animTarget.impactRing = this.overlayManager.impactRingMesh;
           }
 
@@ -325,16 +352,20 @@ export class Renderer {
     }
   }
 
-  private frame(_t: number): void {
+  private frame(t: number): void {
     this.rafHandle = null;
-    const isAnimating = this.animEngine.update();
+    const isAnimating = this.animEngine.update(t);
+    const physics = this.animEngine.getBoardTransform(t);
 
-    if (this.dirty || isAnimating) {
+    this.boardContainerGroup.position.copy(physics.positionOffset);
+    this.boardContainerGroup.rotation.copy(physics.rotationOffset);
+
+    if (this.dirty || isAnimating || physics.isActive) {
       this.webglRenderer.render(this.scene, this.camera);
       this.dirty = false;
     }
 
-    if (isAnimating) {
+    if (isAnimating || physics.isActive) {
       this.requestRender();
     }
   }
