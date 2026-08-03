@@ -19,6 +19,9 @@ export interface ThemeTokens {
   accentDim: string;
   premove: string;
   premoveDim: string;
+  warning: string;
+  error: string;
+  success: string;
 }
 
 export interface Theme {
@@ -29,11 +32,61 @@ export interface Theme {
   lightSquare: string;
   darkSquare: string;
   frame: string;
+  /** One-voxel inlay line separating the frame from the playing surface. */
+  frameInlay: string;
   background: string;
+  /** Upper wall of the room, lit; `background` is the floor it falls to. */
+  backgroundTop: string;
   cssTokens: ThemeTokens;
 }
 
 export const THEMES: Record<string, Theme> = {
+  lacquer: {
+    id: "lacquer",
+    label: "Lacquer",
+    // Shade sits close to base on purpose. A recessed course is a groove, not
+    // a gap: pushed any darker it reads as a break and the piece stops being
+    // one object.
+    white: {
+      base: "#EDE0C8", // boxwood
+      accent: "#FBF3E0",
+      shade: "#D8CAAC",
+      detail: "#D1462F", // vermilion
+    },
+    black: {
+      base: "#2E231C", // urushi
+      accent: "#4A3828",
+      shade: "#241B15",
+      detail: "#C9A227", // maki-e gold
+    },
+    // The squares sit between the two piece colours in value so neither set
+    // dissolves into the board. Pushing them further apart makes the board
+    // shout over the pieces, which is the wrong way round.
+    lightSquare: "#9C7F5C",
+    darkSquare: "#4A3324",
+    frame: "#241813",
+    frameInlay: "#8A6B2E",
+    background: "#0A0705",
+    backgroundTop: "#1F1610",
+    cssTokens: {
+      bg: "#100C0A",
+      surface: "#1A1512",
+      surfaceRaised: "#241D18",
+      border: "#33291F",
+      borderStrong: "#4A3B2A",
+      text: "#EDE0C8",
+      textDim: "#B5A489",
+      textFaint: "#93836C",
+      accent: "#C9A227",
+      accentBright: "#E8C558",
+      accentDim: "#8A6B2E",
+      premove: "#D1462F",
+      premoveDim: "#8E2E1F",
+      warning: "#D98E2B",
+      error: "#C4402B",
+      success: "#8A9A5B",
+    },
+  },
   oxide: {
     id: "oxide",
     label: "Oxide",
@@ -52,7 +105,9 @@ export const THEMES: Record<string, Theme> = {
     lightSquare: "#B8B0A0",
     darkSquare: "#6E6A63",
     frame: "#2A2E33",
-    background: "#1A1D21",
+    frameInlay: "#5E7268",
+    background: "#14171A",
+    backgroundTop: "#2A3138",
     cssTokens: {
       bg: "#1A1D21",
       surface: "#23272C",
@@ -67,6 +122,9 @@ export const THEMES: Record<string, Theme> = {
       accentDim: "#5E7268",
       premove: "#B08D57",
       premoveDim: "#7A6139",
+      warning: "#C87F4A",
+      error: "#C25B54",
+      success: "#7A9E6B",
     },
   },
   monochrome: {
@@ -87,7 +145,9 @@ export const THEMES: Record<string, Theme> = {
     lightSquare: "#A0A0A0",
     darkSquare: "#505050",
     frame: "#1F1F1F",
-    background: "#121212",
+    frameInlay: "#6E6E6E",
+    background: "#0D0D0D",
+    backgroundTop: "#242424",
     cssTokens: {
       bg: "#121212",
       surface: "#1B1B1B",
@@ -102,6 +162,9 @@ export const THEMES: Record<string, Theme> = {
       accentDim: "#666666",
       premove: "#888888",
       premoveDim: "#555555",
+      warning: "#BBBBBB",
+      error: "#DDDDDD",
+      success: "#AAAAAA",
     },
   },
   forest: {
@@ -122,7 +185,9 @@ export const THEMES: Record<string, Theme> = {
     lightSquare: "#A3B18A",
     darkSquare: "#588157",
     frame: "#344E41",
-    background: "#1A2421",
+    frameInlay: "#8FA96B",
+    background: "#131C1A",
+    backgroundTop: "#2A3B35",
     cssTokens: {
       bg: "#1A2421",
       surface: "#23312D",
@@ -137,9 +202,34 @@ export const THEMES: Record<string, Theme> = {
       accentDim: "#5B7846",
       premove: "#D4A373",
       premoveDim: "#966F4A",
+      warning: "#D9A05B",
+      error: "#C25B54",
+      success: "#87A96B",
     },
   },
 };
+
+/**
+ * The mesher bakes a fixed multiplier into each cube face. The DOM reuses the
+ * same four numbers so a panel and a piece are lit by the same imaginary sun.
+ * Kept in sync with FACE_SHADING in ./mesher.ts.
+ */
+export const FACE_SHADING = {
+  top: 1.0,
+  bottom: 0.55,
+  sideX: 0.82,
+  sideZ: 0.72,
+} as const;
+
+/** Multiplies a hex colour by a scalar, the way the mesher shades a face. */
+export function shadeHex(hex: string, factor: number): string {
+  const n = parseInt(hex.replace("#", ""), 16);
+  const clamp = (v: number) => Math.max(0, Math.min(255, Math.round(v)));
+  const r = clamp(((n >> 16) & 0xff) * factor);
+  const g = clamp(((n >> 8) & 0xff) * factor);
+  const b = clamp((n & 0xff) * factor);
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
+}
 
 export function applyThemeToCss(theme: Theme): void {
   if (typeof document === "undefined") return;
@@ -160,5 +250,36 @@ export function applyThemeToCss(theme: Theme): void {
   root.style.setProperty("--accent-dim", tokens.accentDim);
   root.style.setProperty("--premove", tokens.premove);
   root.style.setProperty("--premove-dim", tokens.premoveDim);
-}
+  root.style.setProperty("--warning", tokens.warning);
+  root.style.setProperty("--error", tokens.error);
+  root.style.setProperty("--success", tokens.success);
 
+  // Extrusion set: a DOM panel is a voxel seen head-on, so its front is a Z
+  // face, its top edge catches the sun, its right edge is an X face, and its
+  // bottom edge is in shadow.
+  const material = tokens.surfaceRaised;
+  root.style.setProperty(
+    "--voxel-face",
+    shadeHex(material, FACE_SHADING.sideZ),
+  );
+  root.style.setProperty("--voxel-top", shadeHex(material, FACE_SHADING.top));
+  root.style.setProperty(
+    "--voxel-side",
+    shadeHex(material, FACE_SHADING.sideX),
+  );
+  root.style.setProperty(
+    "--voxel-under",
+    shadeHex(material, FACE_SHADING.bottom),
+  );
+
+  // Same treatment for the accent, used by pressed and active controls.
+  root.style.setProperty(
+    "--voxel-accent-face",
+    shadeHex(tokens.accent, FACE_SHADING.sideZ),
+  );
+  root.style.setProperty("--voxel-accent-top", tokens.accent);
+  root.style.setProperty(
+    "--voxel-accent-under",
+    shadeHex(tokens.accent, FACE_SHADING.bottom),
+  );
+}

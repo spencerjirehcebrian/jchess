@@ -1,3 +1,4 @@
+@import "./fonts.css";
 @import "./tokens.css";
 
 * {
@@ -78,6 +79,164 @@ input::placeholder {
   background: var(--text-faint);
 }
 
+/* ==========================================================================
+   Voxel extrusion
+   The pieces are cubes whose faces are shaded by direction. Every raised
+   surface in the DOM is built from the same four values, so a button and a
+   pawn agree about where the light is. Corners step rather than curve,
+   matching the two-voxel taper on every piece base.
+   ========================================================================== */
+
+:root {
+  --vx-notch: polygon(
+    4px 0%,
+    calc(100% - 4px) 0%,
+    calc(100% - 4px) 2px,
+    calc(100% - 2px) 2px,
+    calc(100% - 2px) 4px,
+    100% 4px,
+    100% calc(100% - 4px),
+    calc(100% - 2px) calc(100% - 4px),
+    calc(100% - 2px) calc(100% - 2px),
+    calc(100% - 4px) calc(100% - 2px),
+    calc(100% - 4px) 100%,
+    4px 100%,
+    4px calc(100% - 2px),
+    2px calc(100% - 2px),
+    2px calc(100% - 4px),
+    0% calc(100% - 4px),
+    0% 4px,
+    2px 4px,
+    2px 2px,
+    4px 2px
+  );
+}
+
+.vx-panel {
+  position: relative;
+  background: var(--voxel-face);
+  clip-path: var(--vx-notch);
+  box-shadow:
+    inset 0 2px 0 0 var(--voxel-top),
+    inset -2px 0 0 0 var(--voxel-side),
+    inset 0 -2px 0 0 var(--voxel-under);
+}
+
+.vx-button {
+  font-family: var(--font-body);
+  font-size: var(--size-sm);
+  font-weight: 500;
+  color: var(--text-dim);
+  background: var(--voxel-face);
+  clip-path: var(--vx-notch);
+  box-shadow:
+    inset 0 2px 0 0 var(--voxel-top),
+    inset -2px 0 0 0 var(--voxel-side),
+    inset 0 -2px 0 0 var(--voxel-under);
+  padding: var(--sp-2) var(--sp-3);
+  min-height: 44px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background var(--dur-fast) ease,
+    color var(--dur-fast) ease;
+}
+
+.vx-button:hover:not(:disabled) {
+  background: var(--voxel-top);
+  color: var(--text);
+}
+
+/* The block is pushed into the board rather than lifted off it. */
+.vx-button:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: inset 0 2px 0 0 var(--voxel-under);
+}
+
+.vx-button:disabled {
+  color: var(--text-faint);
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.vx-button[data-variant="primary"] {
+  color: var(--bg);
+  background: var(--voxel-accent-face);
+  box-shadow:
+    inset 0 2px 0 0 var(--voxel-accent-top),
+    inset 0 -2px 0 0 var(--voxel-accent-under);
+  font-weight: 600;
+}
+
+.vx-button[data-variant="primary"]:hover:not(:disabled) {
+  background: var(--voxel-accent-top);
+  color: var(--bg);
+}
+
+/*
+ * clip-path crops an outline, so focus is drawn as an inset ring instead.
+ * It has to survive the clip to satisfy the keyboard floor.
+ */
+.vx-panel:focus-visible,
+.vx-button:focus-visible,
+.vx-panel:has(:focus-visible) {
+  outline: none;
+  box-shadow:
+    inset 0 0 0 2px var(--accent-bright),
+    inset 0 2px 0 0 var(--voxel-top),
+    inset 0 -2px 0 0 var(--voxel-under);
+}
+
+/* An eyebrow behaves like the gold inlay on the board frame: thin and rare. */
+.vx-label {
+  font-family: var(--font-display);
+  font-size: var(--size-xs);
+  font-weight: 600;
+  font-stretch: 115%;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+/* Ordered dither, the voxel way of saying "nothing here yet". */
+.vx-dither {
+  background-image: repeating-conic-gradient(
+    var(--border) 0% 25%,
+    transparent 0% 50%
+  );
+  background-size: 4px 4px;
+}
+
+@keyframes vx-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-4px);
+  }
+  40% {
+    transform: translateX(4px);
+  }
+  60% {
+    transform: translateX(-2px);
+  }
+  80% {
+    transform: translateX(2px);
+  }
+}
+
+@keyframes vx-caret {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
 .app-main-layout {
   flex: 1;
   display: grid;
@@ -91,8 +250,47 @@ input::placeholder {
 }
 
 @media (max-width: 768px) {
+  /*
+   * One column, scrolling. The board takes a square stage rather than whatever
+   * height is left over — with a flex remainder it collapsed to a letterbox
+   * once the rail was stacked beneath it. The width cap is set inline by the
+   * board-size control, which does not apply here.
+   */
   .app-main-layout {
     grid-template-columns: 1fr;
     overflow-y: auto;
+    max-width: 100% !important;
+    padding: var(--sp-2);
+  }
+
+  .app-board-column,
+  .app-rail {
+    height: auto;
+    overflow: visible;
+  }
+
+  .app-board-stage {
+    flex: none;
+    aspect-ratio: 1 / 1;
+    width: 100%;
+  }
+
+  .app-header-size {
+    display: none;
+  }
+
+  /* flex: 1 has nothing to divide once the rail is auto-height. */
+  .app-move-list {
+    min-height: 140px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

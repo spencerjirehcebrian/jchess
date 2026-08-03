@@ -15,11 +15,9 @@ export function DifficultyPicker({ controller }: DifficultyPickerProps) {
 
   return (
     <div
+      className="vx-panel"
       style={{
-        background: "var(--surface)",
-        border: "1px solid var(--border)",
-        borderRadius: "var(--radius)",
-        padding: "var(--sp-2) var(--sp-3)",
+        padding: "var(--sp-3)",
         display: "flex",
         flexDirection: "column",
         gap: "var(--sp-2)",
@@ -33,17 +31,8 @@ export function DifficultyPicker({ controller }: DifficultyPickerProps) {
           alignItems: "center",
         }}
       >
-        <label
-          htmlFor="engine-level-select"
-          style={{
-            fontSize: "var(--size-xs)",
-            fontFamily: "var(--font-display)",
-            color: "var(--text-faint)",
-            textTransform: "uppercase",
-            letterSpacing: "1px",
-          }}
-        >
-          Engine Level
+        <label htmlFor="engine-level-select" className="vx-label">
+          Engine level
         </label>
 
         <button
@@ -72,14 +61,15 @@ export function DifficultyPicker({ controller }: DifficultyPickerProps) {
         }}
         style={{
           width: "100%",
+          minHeight: "36px",
           padding: "var(--sp-1) var(--sp-2)",
-          background: "var(--surface-raised)",
-          border: "1px solid var(--border-strong)",
-          color: "var(--accent-bright)",
+          background: "var(--voxel-top)",
+          border: "none",
+          boxShadow: "inset 0 2px 0 0 var(--border-strong)",
+          color: "var(--text)",
           borderRadius: "var(--radius)",
           fontFamily: "var(--font-mono)",
           fontSize: "var(--size-sm)",
-          fontWeight: "bold",
         }}
       >
         {Object.values(DIFFICULTY_LEVELS).map((lvl) => {
@@ -132,7 +122,9 @@ export function DifficultyPicker({ controller }: DifficultyPickerProps) {
                   alignItems: "center",
                   padding: "var(--sp-2)",
                   borderRadius: "var(--radius)",
-                  background: isSelected ? "var(--surface-raised)" : "transparent",
+                  background: isSelected
+                    ? "var(--surface-raised)"
+                    : "transparent",
                   border: isSelected
                     ? "1px solid var(--accent-dim)"
                     : "1px solid transparent",

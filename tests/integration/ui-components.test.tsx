@@ -30,7 +30,7 @@ describe('UI Component Integration Tests', () => {
     const controller = new GameController(useGameStore as any)
     render(<DifficultyPicker controller={controller} />)
 
-    const select = screen.getByLabelText('Engine Level') as HTMLSelectElement
+    const select = screen.getByLabelText('Engine level') as HTMLSelectElement
     expect(select).toBeTruthy()
     fireEvent.change(select, { target: { value: '1' } })
 
@@ -41,7 +41,7 @@ describe('UI Component Integration Tests', () => {
     const controller = new GameController(useGameStore as any)
     render(<GameControls controller={controller} />)
 
-    const flipBtn = screen.getByText('Flip')
+    const flipBtn = screen.getByText('Flip board')
     fireEvent.click(flipBtn)
     expect(useGameStore.getState().boardFlipped).toBe(true)
   })
@@ -139,7 +139,7 @@ describe('UI Component Integration Tests', () => {
     useGameStore.setState(() => ({ status: { kind: 'human-turn' } }))
     render(<NotationInput controller={controller} />)
 
-    const input = screen.getByLabelText('Enter move in SAN notation') as HTMLInputElement
+    const input = screen.getByLabelText('Enter move in algebraic notation') as HTMLInputElement
     fireEvent.change(input, { target: { value: 'e4' } })
     expect(input.value).toBe('e4')
 
@@ -170,15 +170,19 @@ describe('UI Component Integration Tests', () => {
     render(<BoardSizeControls controller={controller} />)
 
     expect(screen.getByText('Size')).toBeTruthy()
-    const decBtn = screen.getByLabelText('Make board smaller')
+
+    // The segmented group and maximise toggle were replaced by a plain
+    // stepper, so size now moves one rung at a time in either direction.
+    const decBtn = screen.getByLabelText('Make the board smaller')
+    const incBtn = screen.getByLabelText('Make the board larger')
+
     fireEvent.click(decBtn)
     expect(useGameStore.getState().boardSize).toBe('large')
 
-    const maxBtn = screen.getByLabelText('Maximize board size')
-    fireEvent.click(maxBtn)
-    expect(useGameStore.getState().boardSize).toBe('full')
-
     fireEvent.click(decBtn)
+    expect(useGameStore.getState().boardSize).toBe('normal')
+
+    fireEvent.click(incBtn)
     expect(useGameStore.getState().boardSize).toBe('large')
   })
 

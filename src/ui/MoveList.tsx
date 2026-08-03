@@ -37,21 +37,31 @@ export function MoveList({ controller }: MoveListProps) {
   return (
     <div
       ref={listRef}
+      className="vx-panel app-move-list"
       style={{
         flex: 1,
         minHeight: 0,
         overflowY: "auto",
         fontFamily: "var(--font-mono)",
         fontSize: "var(--size-sm)",
-        background: "var(--surface)",
-        border: "1px solid var(--border)",
-        borderRadius: "var(--radius)",
-        padding: "var(--sp-2) var(--sp-3)",
+        padding: "var(--sp-3)",
       }}
     >
       {pairs.length === 0 ? (
-        <div style={{ color: "var(--text-faint)", fontStyle: "italic" }}>
-          No moves played yet
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--sp-2)",
+            color: "var(--text-faint)",
+          }}
+        >
+          <span
+            className="vx-dither"
+            aria-hidden="true"
+            style={{ width: "16px", height: "8px", flexShrink: 0 }}
+          />
+          Play a move to begin
         </div>
       ) : (
         pairs.map((p) => {

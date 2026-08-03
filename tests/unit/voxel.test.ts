@@ -111,12 +111,14 @@ describe("voxel asset & mesher structural validation", () => {
   });
 
   it("5. heights match specified target table", () => {
-    expect(PIECE_DEFINITIONS.pawn.height).toBe(14);
-    expect(PIECE_DEFINITIONS.knight.height).toBe(18);
-    expect(PIECE_DEFINITIONS.bishop.height).toBe(19);
-    expect(PIECE_DEFINITIONS.rook.height).toBe(17);
-    expect(PIECE_DEFINITIONS.queen.height).toBe(22);
-    expect(PIECE_DEFINITIONS.king.height).toBe(24);
+    // Lowered from the original 14–24 so a back-rank piece is not occluded by
+    // its own pawn at the fixed 62-degree camera. See docs/05-voxel-assets.md.
+    expect(PIECE_DEFINITIONS.pawn.height).toBe(12);
+    expect(PIECE_DEFINITIONS.knight.height).toBe(17);
+    expect(PIECE_DEFINITIONS.bishop.height).toBe(17);
+    expect(PIECE_DEFINITIONS.rook.height).toBe(15);
+    expect(PIECE_DEFINITIONS.queen.height).toBe(19);
+    expect(PIECE_DEFINITIONS.king.height).toBe(20);
   });
 
   it("6. meshing all 12 geometries completes under 30ms", () => {
@@ -125,8 +127,8 @@ describe("voxel asset & mesher structural validation", () => {
     const t0 = performance.now();
 
     for (const role of roles) {
-      meshPiece(PIECE_DEFINITIONS[role], theme.white, "white");
-      meshPiece(PIECE_DEFINITIONS[role], theme.black, "black");
+      meshPiece(PIECE_DEFINITIONS[role], theme.white);
+      meshPiece(PIECE_DEFINITIONS[role], theme.black);
     }
 
     const duration = performance.now() - t0;
@@ -139,7 +141,7 @@ describe("voxel asset & mesher structural validation", () => {
     const counts: Record<string, number> = {};
 
     for (const role of roles) {
-      const mesh = meshPiece(PIECE_DEFINITIONS[role], theme.white, "white");
+      const mesh = meshPiece(PIECE_DEFINITIONS[role], theme.white);
       counts[role] = mesh.triangleCount;
       expect(mesh.triangleCount).toBeGreaterThan(100);
       expect(mesh.triangleCount).toBeLessThan(5000);

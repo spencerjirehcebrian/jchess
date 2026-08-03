@@ -17,76 +17,33 @@ export function GameControls({
   return (
     <div
       style={{
-        display: "flex",
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
         gap: "var(--sp-2)",
-        marginTop: "var(--sp-2)",
       }}
     >
       <button
+        className="vx-button"
         onClick={() => controller?.takeback()}
         disabled={takebackDisabled}
-        aria-disabled={takebackDisabled}
-        style={{
-          flex: 1,
-          padding: "var(--sp-2) var(--sp-3)",
-          background: "var(--surface-raised)",
-          border: "1px solid var(--border)",
-          borderRadius: "var(--radius)",
-          color: "var(--text)",
-          fontSize: "var(--size-sm)",
-          cursor: takebackDisabled ? "not-allowed" : "pointer",
-          opacity: takebackDisabled ? 0.5 : 1,
-        }}
       >
         Take back
       </button>
 
-      <button
-        onClick={() => controller?.flipBoard()}
-        style={{
-          flex: 1,
-          padding: "var(--sp-2) var(--sp-3)",
-          background: "var(--surface-raised)",
-          border: "1px solid var(--border)",
-          borderRadius: "var(--radius)",
-          color: "var(--text)",
-          fontSize: "var(--size-sm)",
-          cursor: "pointer",
-        }}
-      >
-        Flip
+      <button className="vx-button" onClick={() => controller?.flipBoard()}>
+        Flip board
       </button>
 
       <button
+        className="vx-button"
+        data-variant="primary"
         onClick={() => controller?.startNewGame()}
-        style={{
-          flex: 1,
-          padding: "var(--sp-2) var(--sp-3)",
-          background: "var(--surface-raised)",
-          border: "1px solid var(--border)",
-          borderRadius: "var(--radius)",
-          color: "var(--text)",
-          fontSize: "var(--size-sm)",
-          cursor: "pointer",
-        }}
       >
         New game
       </button>
 
       {onOpenSettings && (
-        <button
-          onClick={onOpenSettings}
-          aria-label="Open settings"
-          style={{
-            padding: "var(--sp-2) var(--sp-3)",
-            background: "var(--surface-raised)",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--radius)",
-            color: "var(--text-dim)",
-            fontSize: "var(--size-sm)",
-            cursor: "pointer",
-          }}
-        >
+        <button className="vx-button" onClick={onOpenSettings}>
           Settings
         </button>
       )}

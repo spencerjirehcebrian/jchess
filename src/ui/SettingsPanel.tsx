@@ -8,7 +8,7 @@ interface SettingsPanelProps {
 }
 
 export function SettingsPanel({ controller, onClose }: SettingsPanelProps) {
-  const currentTheme = useGameStore((s) => s.theme) ?? "oxide";
+  const currentTheme = useGameStore((s) => s.theme) ?? "lacquer";
   const currentMaxPremoves = useGameStore((s) => s.maxPremoves) ?? 3;
   const currentBoardSize = useGameStore((s) => s.boardSize) ?? "normal";
 
@@ -33,10 +33,11 @@ export function SettingsPanel({ controller, onClose }: SettingsPanelProps) {
       }}
     >
       <div
+        className="vx-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Settings"
         style={{
-          background: "var(--surface)",
-          border: "1px solid var(--border-strong)",
-          borderRadius: "var(--radius)",
           padding: "var(--sp-6)",
           width: "90%",
           maxWidth: "480px",
@@ -49,14 +50,18 @@ export function SettingsPanel({ controller, onClose }: SettingsPanelProps) {
             justifyContent: "space-between",
             alignItems: "center",
             marginBottom: "var(--sp-4)",
+            paddingBottom: "var(--sp-3)",
+            borderBottom: "2px solid var(--accent-dim)",
           }}
         >
           <h2
             style={{
               fontFamily: "var(--font-display)",
               fontSize: "var(--size-lg)",
+              fontWeight: 700,
+              fontStretch: "120%",
               textTransform: "uppercase",
-              letterSpacing: "1px",
+              letterSpacing: "0.16em",
             }}
           >
             Settings
@@ -194,7 +199,7 @@ export function SettingsPanel({ controller, onClose }: SettingsPanelProps) {
             >
               {Object.values(THEMES).map((th) => (
                 <option key={th.id} value={th.id} style={optionStyle}>
-                  {th.label} {th.id === "oxide" ? "(default)" : ""}
+                  {th.label} {th.id === "lacquer" ? "(default)" : ""}
                 </option>
               ))}
             </select>

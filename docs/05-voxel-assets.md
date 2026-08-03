@@ -40,22 +40,29 @@ Characters:
 
 | Role | Height (voxels) |
 |---|---|
-| Pawn | 14 |
-| Knight | 18 |
-| Bishop | 19 |
-| Rook | 17 |
-| Queen | 22 |
-| King | 24 |
+| Pawn | 12 |
+| Knight | 17 |
+| Bishop | 17 |
+| Rook | 15 |
+| Queen | 19 |
+| King | 20 |
+
+The king's 20 voxels is a ceiling derived from the camera, not a taste call. A
+piece projects to `height x cos(62 deg)` of screen height while consecutive
+ranks sit `1 square x sin(62 deg)` apart, so a piece taller than 20 voxels
+starts covering the piece standing behind it. The original 14-24 range broke
+this and the back rank was routinely hidden by its own pawns.
 
 - **World scale: 1 voxel = 1/13 of a square.** Set square size to 1.0 world unit, so `VOXEL_SIZE = 1 / 13`.
 
 ### Authoring rules
 
 1. **Every piece must be distinguishable by silhouette alone** from the fixed camera. Test by rendering flat black on white and checking that all six read at 64px tall.
-2. **The knight is the hard one.** Build it first. If the knight does not read at this resolution, the entire footprint and height budget needs revisiting before any other piece is authored. Do not author all six and then discover this.
-3. **Bases must be identical across all pieces** — same footprint, same bottom three layers. This makes pieces sit consistently and simplifies the contact shadow.
-4. **Pieces are symmetric about the X axis** except the knight, which faces the opponent. The knight's facing flips with colour.
-5. **No floating voxels.** Every voxel must be connected to the base through face-adjacency. Add a validation function that asserts this and run it in tests.
+2. **Distinguish by mass, not by finial.** The camera flattens the top of every piece, so a crown ornament is the least visible part of the model. Roles must differ in plan and profile: the rook is the only square-plan piece, the queen carries the widest crown, the pawn is by far the shortest. Four pieces sharing a stem and differing only in their tip is the failure mode this rule exists to prevent.
+3. **The knight is the hard one.** Build it first. It is authored **in profile along X, muzzle to the left**, not facing the opponent along Z — the camera looks down the Z axis, so a forward-facing horse is seen nose-on and reads as a lumpy cylinder. Both colours face the same way, as in any 2D chess set.
+4. **Bases must be identical across all pieces** — same footprint, same bottom three layers. This makes pieces sit consistently and simplifies the contact shadow.
+5. **Shade (`-`) is not optional.** Use it as a recessed course at the plinth and at each waist. Keep it close to base: pushed too dark it reads as a break and severs the piece into two stacked objects.
+6. **No floating voxels.** Every voxel must be connected to the base through face-adjacency. Add a validation function that asserts this and run it in tests.
 
 ## Reference: pawn
 
@@ -185,7 +192,37 @@ interface Theme {
 }
 ```
 
-### Default theme: "Oxide"
+### Default theme: "Lacquer"
+
+Japanese lacquerware: urushi black and maki-e gold against pale boxwood and
+vermilion. Chosen because it is what this renderer can execute honestly — deep
+black, a hard specular edge and gold catching the light need no texture, while
+marble, wood grain and metal roughness all need maps the mesher cannot produce.
+It also gives the `o` detail channel real work: crowns, the king's cross, the
+knight's eye and the bishop's orb are the only per-piece identity signals, and
+in gold or vermilion they finally read.
+
+| Token | Value | Use |
+|---|---|---|
+| `white.base` | `#EDE0C8` | Boxwood |
+| `white.accent` | `#FBF3E0` | |
+| `white.shade` | `#D8CAAC` | |
+| `white.detail` | `#D1462F` | Vermilion |
+| `black.base` | `#241B16` | Urushi |
+| `black.accent` | `#3E2F24` | |
+| `black.shade` | `#1E1613` | |
+| `black.detail` | `#C9A227` | Maki-e gold |
+| `lightSquare` | `#9C7F5C` | |
+| `darkSquare` | `#4A3324` | |
+| `frame` | `#241813` | |
+| `frameInlay` | `#8A6B2E` | Gold inlay line and engraved coordinates |
+| `background` | `#0A0705` | Room floor |
+| `backgroundTop` | `#1F1610` | Room wall, lit |
+
+The squares sit between the two piece colours in value. Pushing them further
+apart makes the board shout over the pieces, which is the wrong way round.
+
+### Alternative theme: "Oxide"
 
 Deliberately not a wood-and-ivory chess set. The voxel form is modern and the palette should agree with it.
 
@@ -210,9 +247,17 @@ Ship two additional themes so the theming machinery is exercised and not merely 
 
 The board is a single mesh, generated the same way:
 
-- 8 × 8 squares, each 13 × 13 voxels, 2 voxels deep.
-- A frame 4 voxels wide and 4 voxels tall surrounding it.
-- Rank and file coordinates extruded into the frame as 3-voxel-tall glyphs, on two adjacent edges only.
+- 8 × 8 squares, each 13 × 13 voxels, on a tray 6 voxels deep.
+- A frame 8 voxels wide standing 1 voxel proud of the playing surface, so the board reads as a tray rather than a decal.
+- A 1-voxel inlay line in `frameInlay` separating the frame from the squares.
+- Rank and file coordinates engraved into the frame — recessed to the height of the playing surface and coloured `frameInlay` — as 3 × 5 glyphs on two adjacent edges. The frame is 8 wide to fit them: inlay, a voxel of margin, the 5-voxel glyph, a voxel before the outer edge.
+
+Columns are emitted as a top face plus whatever wall is exposed against each
+neighbour. That single rule gives the perimeter its full depth, the frame lip
+its one-voxel step, and the engraved glyphs their shadowed edges for free.
+
+Because the coordinates are baked into the mesh, the board mesh is rotated 180
+degrees when the board flips rather than rebuilt.
 
 Generate the board from the same mesher, treating it as one large voxel grid, so it shares the shading model and reads as part of the same world. Do not build the board from Three.js primitives — the mismatch in shading is immediately visible.
 

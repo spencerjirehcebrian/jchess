@@ -1,44 +1,65 @@
 :root {
   color-scheme: dark;
 
-  /* Surface — matches the 3D background so the canvas has no visible seam */
-  --bg: #1a1d21;
-  --surface: #23272c;
-  --surface-raised: #2c3138;
-  --border: #383e46;
-  --border-strong: #4a525c;
+  /*
+   * Defaults are the Lacquer theme. applyThemeToCss() overwrites every colour
+   * below at runtime; these values exist so the first paint, before the store
+   * has resolved, already matches the scene instead of flashing a grey shell.
+   */
 
-  /* Text */
-  --text: #e4e7ea;
-  --text-dim: #9aa3ac;
-  --text-faint: #656d76;
+  /* Surface — warm lacquer ramp */
+  --bg: #100c0a;
+  --surface: #1a1512;
+  --surface-raised: #241d18;
+  --border: #33291f;
+  --border-strong: #4a3b2a;
 
-  /* Accent — sage, pulled from the white pieces' detail colour */
-  --accent: #8fa89b;
-  --accent-bright: #a8c4b4;
-  --accent-dim: #5e7268;
+  /* Text — the lightest value is the white pieces' own boxwood */
+  --text: #ede0c8;
+  --text-dim: #b5a489;
+  --text-faint: #93836c;
 
-  /* Premove — brass, pulled from the black pieces' detail colour */
-  --premove: #b08d57;
-  --premove-dim: #7a6139;
+  /* Accent — maki-e gold, the black pieces' detail voxel */
+  --accent: #c9a227;
+  --accent-bright: #e8c558;
+  --accent-dim: #8a6b2e;
+
+  /* Premove — vermilion, the white pieces' detail voxel */
+  --premove: #d1462f;
+  --premove-dim: #8e2e1f;
 
   /* Status */
-  --warning: #c87f4a;
-  --error: #c25b54;
-  --success: #7a9e6b;
+  --warning: #d98e2b;
+  --error: #c4402b;
+  --success: #8a9a5b;
+
+  /*
+   * Extrusion set. A panel is a voxel seen head-on: its front is a Z face, its
+   * top edge catches the sun, its right edge is an X face, its bottom edge is
+   * in shadow. Recomputed per theme from the same multipliers the mesher bakes
+   * into the geometry, so DOM and canvas are lit by one imaginary sun.
+   */
+  --voxel-face: #1a1511;
+  --voxel-top: #241d18;
+  --voxel-side: #1d1713;
+  --voxel-under: #14100d;
+  --voxel-accent-face: #90741c;
+  --voxel-accent-top: #c9a227;
+  --voxel-accent-under: #6e5915;
 
   /* Type */
-  --font-display: "Space Grotesk", system-ui, sans-serif;
-  --font-body: "Inter", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-display: "Archivo", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "Departure Mono", ui-monospace, monospace;
 
   --size-xs: 0.6875rem; /* 11px — labels, eyebrows */
   --size-sm: 0.8125rem; /* 13px — move list, secondary */
   --size-md: 0.9375rem; /* 15px — body */
-  --size-lg: 1.25rem; /* 20px — notation field */
+  --size-lg: 1.375rem; /* 22px — notation field */
   --size-xl: 1.75rem; /* 28px — clocks, result */
 
-  /* Space — 4px base */
+  /* Space — one UI voxel is 4px, and every gap is a whole number of them */
+  --vx: 4px;
   --sp-1: 0.25rem;
   --sp-2: 0.5rem;
   --sp-3: 0.75rem;
@@ -46,7 +67,7 @@
   --sp-6: 1.5rem;
   --sp-8: 2rem;
 
-  --radius: 2px; /* nearly square; instrument-like */
+  --radius: 0; /* voxels do not have corners */
   --dur-fast: 120ms;
   --dur-base: 180ms;
 }

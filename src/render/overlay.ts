@@ -5,6 +5,14 @@ import { Theme } from "./voxel/palette";
 
 export type DotVariant = "legal" | "premove";
 
+/*
+ * Overlays are drawn in the theme accent — gold, in Lacquer — and premoves in
+ * the premove token. That split carries meaning: gold marks what is true of
+ * the position right now (last move, selection, legal destinations) and the
+ * premove hue marks what is only queued. Previously both used a piece's detail
+ * colour, so a routine last-move highlight arrived in alarm red.
+ */
+
 /** No theme exposes an error token; premove drain failures use a fixed red. */
 const ERROR_FLASH_COLOR = "#C64B4B";
 
@@ -34,7 +42,7 @@ export class OverlayManager {
     const ringGeo = new THREE.RingGeometry(0.2, 0.45, 32);
     ringGeo.rotateX(-Math.PI / 2);
     const ringMat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(theme.white.detail),
+      color: new THREE.Color(theme.cssTokens.accent),
       transparent: true,
       opacity: 0,
       depthWrite: false,
@@ -46,7 +54,7 @@ export class OverlayManager {
 
     // Last move from
     const fromMat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(theme.white.detail),
+      color: new THREE.Color(theme.cssTokens.accent),
       transparent: true,
       opacity: 0.18,
       depthWrite: false,
@@ -57,7 +65,7 @@ export class OverlayManager {
 
     // Last move to
     const toMat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(theme.white.detail),
+      color: new THREE.Color(theme.cssTokens.accent),
       transparent: true,
       opacity: 0.28,
       depthWrite: false,
@@ -68,7 +76,7 @@ export class OverlayManager {
 
     // Selected square
     const selMat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(theme.white.detail),
+      color: new THREE.Color(theme.cssTokens.accent),
       transparent: true,
       opacity: 0.5,
       depthWrite: false,
@@ -81,7 +89,7 @@ export class OverlayManager {
     const dotGeo = new THREE.CircleGeometry(0.12, 16);
     dotGeo.rotateX(-Math.PI / 2);
     const dotMat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(theme.white.detail),
+      color: new THREE.Color(theme.cssTokens.accent),
       transparent: true,
       opacity: 0.55,
       depthWrite: false,
@@ -211,11 +219,15 @@ export class OverlayManager {
   }
 
   setTheme(theme: Theme) {
-    const detailColor = new THREE.Color(theme.white.detail);
-    (this.impactRingMesh.material as THREE.MeshBasicMaterial).color = detailColor;
-    (this.lastMoveFromQuad.material as THREE.MeshBasicMaterial).color = detailColor;
-    (this.lastMoveToQuad.material as THREE.MeshBasicMaterial).color = detailColor;
-    (this.selectedSquareQuad.material as THREE.MeshBasicMaterial).color = detailColor;
+    const detailColor = new THREE.Color(theme.cssTokens.accent);
+    (this.impactRingMesh.material as THREE.MeshBasicMaterial).color =
+      detailColor;
+    (this.lastMoveFromQuad.material as THREE.MeshBasicMaterial).color =
+      detailColor;
+    (this.lastMoveToQuad.material as THREE.MeshBasicMaterial).color =
+      detailColor;
+    (this.selectedSquareQuad.material as THREE.MeshBasicMaterial).color =
+      detailColor;
     this.legalDotMaterial.color = detailColor;
     this.premoveDotMaterial.color = new THREE.Color(theme.cssTokens.premove);
   }
@@ -233,8 +245,10 @@ export class OverlayManager {
     (this.impactRingMesh.material as THREE.Material).dispose();
     this.lastMoveFromQuad.geometry.dispose();
     (this.lastMoveFromQuad.material as THREE.Material).dispose();
-    this.lastMoveToQuad.material && (this.lastMoveToQuad.material as THREE.Material).dispose();
-    this.selectedSquareQuad.material && (this.selectedSquareQuad.material as THREE.Material).dispose();
+    this.lastMoveToQuad.material &&
+      (this.lastMoveToQuad.material as THREE.Material).dispose();
+    this.selectedSquareQuad.material &&
+      (this.selectedSquareQuad.material as THREE.Material).dispose();
     if (this.legalDotsPool.length > 0) {
       this.legalDotsPool[0]!.geometry.dispose();
       (this.legalDotsPool[0]!.material as THREE.Material).dispose();

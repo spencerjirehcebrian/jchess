@@ -33,7 +33,8 @@ export function NotationInput({ controller }: NotationInputProps) {
   // Typed premoves are matched on a turn-swapped board so SAN still renders;
   // the fully relaxed premove set (rays through enemy pieces) is pointer-only.
   const matchPos = useMemo(() => {
-    if (!isPremoveMode || currentPos.turn === state.humanColor) return currentPos;
+    if (!isPremoveMode || currentPos.turn === state.humanColor)
+      return currentPos;
     const swapped = currentPos.clone();
     swapped.turn = state.humanColor;
     return swapped;
@@ -86,95 +87,185 @@ export function NotationInput({ controller }: NotationInputProps) {
       : "var(--accent-bright)"
     : "var(--text-dim)";
 
+  // The shortest candidate that starts with what has been typed. Its tail is
+  // painted behind the caret so the completion is legible before it is taken.
+  const ghost = (() => {
+    if (!buffer || notationState.exactMatch) return "";
+    const match = candidateSans.find((san) => san.startsWith(buffer));
+    return match ? match.slice(buffer.length) : "";
+  })();
+
+  const accentColor = isPremoveMode ? "var(--premove)" : "var(--accent)";
+  const borderColor = isShaking
+    ? "var(--error)"
+    : notationState.exactMatch
+      ? accentColor
+      : "var(--border-strong)";
+
   return (
     <div
       style={{
         width: "100%",
-        height: "76px",
-        minHeight: "76px",
-        maxHeight: "76px",
+        height: "84px",
+        minHeight: "84px",
+        maxHeight: "84px",
         flexShrink: 0,
         boxSizing: "border-box",
-        background: "var(--surface)",
-        border: `1px solid ${isShaking ? "var(--error)" : notationState.exactMatch ? "var(--accent)" : "var(--border)"}`,
-        borderRadius: "var(--radius)",
-        padding: "var(--sp-2) var(--sp-4)",
+        position: "relative",
+        background: "var(--voxel-face)",
+        clipPath: "var(--vx-notch)",
+        boxShadow: `inset 0 2px 0 0 ${borderColor}, inset -2px 0 0 0 var(--voxel-side), inset 0 -2px 0 0 var(--voxel-under)`,
+        padding: "var(--sp-3) var(--sp-4)",
         fontFamily: "var(--font-mono)",
         display: "flex",
         flexDirection: "column",
         justifyContent: "center",
-        animation: isShaking ? "shake 220ms ease-in-out" : "none",
-        transition: "border-color var(--dur-fast) ease",
+        animation: isShaking ? "vx-shake 220ms ease-in-out" : "none",
+        transition: "box-shadow var(--dur-fast) ease",
       }}
     >
       <div
         style={{
           display: "flex",
-          alignItems: "center",
+          alignItems: "baseline",
           fontSize: "var(--size-lg)",
+          lineHeight: 1.2,
         }}
       >
         <span
+          aria-hidden="true"
           style={{
             color: chevronColor,
-            marginRight: "var(--sp-2)",
-            fontWeight: "bold",
+            marginRight: "var(--sp-3)",
+            transition: "color var(--dur-fast) ease",
           }}
         >
           ▸
         </span>
-        <input
-          ref={inputRef}
-          type="text"
-          value={buffer}
-          onChange={(e) => setBuffer(e.target.value)}
-          onKeyDown={handleKeyDown}
-          aria-label="Enter move in SAN notation"
-          placeholder={isPremoveMode ? "premove..." : "e4, Nf3..."}
-          style={{
-            width: "100%",
-            color: isPremoveMode ? "var(--premove)" : "var(--text)",
-            outline: "none",
-            background: "transparent",
-          }}
-        />
+
+        {/*
+          The input is transparent and sits over a painted copy of the buffer.
+          A native caret cannot be a solid block, and the ghost completion has
+          to sit inline immediately after the typed text.
+        */}
+        <span style={{ position: "relative", flex: 1, minWidth: 0 }}>
+          <span
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              alignItems: "center",
+              pointerEvents: "none",
+              whiteSpace: "pre",
+              overflow: "hidden",
+            }}
+          >
+            {buffer ? (
+              <>
+                <span
+                  style={{
+                    color: isPremoveMode ? "var(--premove)" : "var(--text)",
+                  }}
+                >
+                  {buffer}
+                </span>
+                <span style={{ color: "var(--text-faint)" }}>{ghost}</span>
+              </>
+            ) : (
+              // Offset by one cell so the block caret does not sit on top of
+              // the first character of the hint.
+              <span
+                style={{ color: "var(--text-faint)", paddingLeft: "1.2ch" }}
+              >
+                {isPremoveMode ? "premove" : "e4, Nf3"}
+              </span>
+            )}
+          </span>
+
+          <input
+            ref={inputRef}
+            type="text"
+            value={buffer}
+            onChange={(e) => setBuffer(e.target.value)}
+            onKeyDown={handleKeyDown}
+            aria-label="Enter move in algebraic notation"
+            aria-describedby="notation-candidates"
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
+            style={{
+              width: "100%",
+              color: "transparent",
+              caretColor: "transparent",
+              outline: "none",
+              background: "transparent",
+              fontFamily: "inherit",
+              fontSize: "inherit",
+              position: "relative",
+            }}
+          />
+
+          {/* Solid block caret, 530ms, sitting after the typed characters. */}
+          <span
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              top: "50%",
+              left: `${buffer.length}ch`,
+              transform: "translateY(-50%)",
+              width: "0.55em",
+              height: "1.05em",
+              background: accentColor,
+              animation: "vx-caret 1060ms steps(1) infinite",
+              pointerEvents: "none",
+            }}
+          />
+        </span>
+
         <span
           style={{
             fontSize: "var(--size-xs)",
             color: "var(--text-faint)",
             whiteSpace: "nowrap",
-            marginLeft: "var(--sp-2)",
+            marginLeft: "var(--sp-3)",
           }}
         >
-          [↵ move]
+          ↵ move
         </span>
       </div>
 
       <div
+        id="notation-candidates"
+        aria-live="polite"
         style={{
           height: "20px",
           lineHeight: "20px",
           fontSize: "var(--size-sm)",
           color: "var(--text-dim)",
-          marginTop: "var(--sp-1)",
+          marginTop: "var(--sp-2)",
           visibility: buffer ? "visible" : "hidden",
           whiteSpace: "nowrap",
           overflow: "hidden",
           textOverflow: "ellipsis",
         }}
       >
-        {candidateSans.join("   ")}
+        {candidateSans.map((san) => (
+          <span key={san} style={{ marginRight: "var(--sp-3)" }}>
+            <span style={{ color: "var(--text)" }}>{buffer}</span>
+            <span style={{ color: "var(--text-faint)" }}>
+              {san.startsWith(buffer) ? san.slice(buffer.length) : san}
+            </span>
+          </span>
+        ))}
         {remainingCount > 0 && (
           <span style={{ color: "var(--text-faint)" }}>
-            {" "}
             +{remainingCount} more
           </span>
         )}
         {notationState.ambiguous && (
-          <span
-            style={{ color: "var(--warning)", marginLeft: "var(--sp-2)" }}
-          >
-            Type file or piece to specify
+          <span style={{ color: "var(--warning)", marginLeft: "var(--sp-2)" }}>
+            Type the file or piece to specify
           </span>
         )}
       </div>
