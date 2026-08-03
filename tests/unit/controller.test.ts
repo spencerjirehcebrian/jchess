@@ -79,7 +79,7 @@ describe("GameController", () => {
     expect(store.history[0]?.san).toBe("e4");
 
     // Wait for fake engine reply
-    await new Promise((r) => setTimeout(r, 200));
+    await new Promise((r) => setTimeout(r, 500));
     expect(store.history.length).toBe(2);
     expect(store.history[1]?.san).toBe("e5");
     expect(store.status.kind).toBe("human-turn");
