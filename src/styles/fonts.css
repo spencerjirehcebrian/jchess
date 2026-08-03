@@ -2,10 +2,8 @@
  * Self-hosted, latin subset only. Cross-origin isolation (COEP) blocks font
  * CDNs, so these must ship with the app — see docs/09-ui-design.md.
  *
- * Archivo      — variable weight and width. Used expanded and heavy, in small
- *                doses, for labels that behave like inlay on the frame.
- * IBM Plex Sans— variable weight. Prose, buttons, settings. Squared terminals
- *                sit closer to the voxel grid than a humanist grotesque.
+ * Archivo      — variable weight and width. Names things: the wordmark, the
+ *                players, and every control, set condensed and heavy.
  * Departure Mono — the notation, move list, clocks and coordinates. It is drawn
  *                on a pixel grid, which is the same grammar as the pieces.
  */
@@ -17,14 +15,6 @@
   font-stretch: 62.5% 125%;
   font-display: swap;
   src: url("/fonts/archivo-var-latin.woff2") format("woff2");
-}
-
-@font-face {
-  font-family: "IBM Plex Sans";
-  font-style: normal;
-  font-weight: 100 700;
-  font-display: swap;
-  src: url("/fonts/plexsans-var-latin.woff2") format("woff2");
 }
 
 @font-face {

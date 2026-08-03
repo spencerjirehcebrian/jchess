@@ -73,7 +73,7 @@ so the first paint matches the scene instead of flashing a grey shell.
 
   /* Type */
   --font-display: 'Archivo', system-ui, sans-serif;
-  --font-body:    'IBM Plex Sans', system-ui, sans-serif;
+  --font-body:    'Archivo', system-ui, sans-serif;
   --font-mono:    'Departure Mono', ui-monospace, monospace;
 
   --vx: 4px;               /* one UI voxel; every gap is a whole number of them */
@@ -83,11 +83,21 @@ so the first paint matches the scene instead of flashing a grey shell.
 
 **Typography roles:**
 
-- `--font-display` — Archivo, variable weight and width. Section labels, the brand, the result banner. Used sparingly: heavy, expanded, uppercase, widely letter-spaced, so a label behaves like the gold inlay on the board frame — thin and rare.
-- `--font-body` — IBM Plex Sans, variable. All prose, buttons, settings. Its squared terminals sit closer to the voxel grid than a humanist grotesque.
-- `--font-mono` — Departure Mono. The notation field, move list, clocks, evaluation, coordinates. It is drawn on a pixel grid, which is the same grammar as the pieces — the type and the art are built the same way.
+Two faces, and each owns a job. A third — IBM Plex Sans — used to sit between
+them on the buttons, which are the most-looked-at chrome in the app, with no
+relationship to either of these or to the board. It has been dropped.
 
-All three are self-hosted latin-subset woff2 in `public/fonts` (152KB total).
+- `--font-display` / `--font-body` — Archivo, variable weight and width. It
+  **names** things. At its loudest, heavy and expanded, it is the wordmark, the
+  result banner and the players. At label size it is the eyebrows, behaving like
+  the gold inlay on the board frame — thin and rare. In between, condensed and
+  uppercase at 13px, it is every button, select and rung. A control and a label
+  are the same voice at two volumes.
+- `--font-mono` — Departure Mono. It **states** things: the notation field, move
+  list, clocks, evaluation, coordinates. It is drawn on a pixel grid, which is
+  the same grammar as the pieces — the type and the art are built the same way.
+
+Both are self-hosted latin-subset woff2 in `public/fonts` (112KB total).
 Cross-origin isolation blocks third-party font CDNs, so Google Fonts is not an
 option — this is not a preference, it is a hard constraint of the COEP header.
 

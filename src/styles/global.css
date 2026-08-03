@@ -122,10 +122,21 @@ input::placeholder {
     inset 0 -2px 0 0 var(--voxel-under);
 }
 
-.vx-button {
+/*
+ * Every control wears the same face. A button, a select and the settings close
+ * are the same object at different jobs, so they share the notch, the three
+ * extrusion edges and the condensed-caps setting. Five different control
+ * languages used to share this rail; the mismatch read as the interface being
+ * assembled from parts rather than made.
+ */
+.vx-button,
+.vx-select {
   font-family: var(--font-body);
   font-size: var(--size-sm);
-  font-weight: 500;
+  font-weight: 600;
+  font-stretch: 112%;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--text-dim);
   background: var(--voxel-face);
   clip-path: var(--vx-notch);
@@ -134,7 +145,7 @@ input::placeholder {
     inset -2px 0 0 0 var(--voxel-side),
     inset 0 -2px 0 0 var(--voxel-under);
   padding: var(--sp-2) var(--sp-3);
-  min-height: 44px;
+  min-height: var(--control-h);
   cursor: pointer;
   white-space: nowrap;
   transition:
@@ -142,7 +153,8 @@ input::placeholder {
     color var(--dur-fast) ease;
 }
 
-.vx-button:hover:not(:disabled) {
+.vx-button:hover:not(:disabled),
+.vx-select:hover:not(:disabled) {
   background: var(--voxel-top);
   color: var(--text);
 }
@@ -153,10 +165,81 @@ input::placeholder {
   box-shadow: inset 0 2px 0 0 var(--voxel-under);
 }
 
-.vx-button:disabled {
+.vx-button:disabled,
+.vx-select:disabled {
   color: var(--text-faint);
   cursor: not-allowed;
   opacity: 0.55;
+}
+
+.vx-button[data-size="sm"] {
+  min-height: var(--control-h-sm);
+  padding: var(--sp-1) var(--sp-2);
+}
+
+.vx-select {
+  width: 100%;
+  appearance: none;
+  /* Two stacked steps, the same shape the piece bases taper with. */
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--text-faint) 50%),
+    linear-gradient(-45deg, transparent 50%, var(--text-faint) 50%);
+  background-position:
+    calc(100% - 16px) calc(50% + 1px),
+    calc(100% - 10px) calc(50% + 1px);
+  background-size: 6px 6px;
+  background-repeat: no-repeat;
+  padding-right: var(--sp-8);
+}
+
+/*
+ * A rung of the level ladder. Shorter than a button on purpose: the ladder is
+ * a scale, not eight more actions, and at button height it competed with the
+ * four controls beneath it. The button stays 44px for the touch floor and the
+ * painted bar sits inside it.
+ */
+.vx-rung-hit {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  padding: 9px 0;
+  background: none;
+  cursor: pointer;
+  display: block;
+}
+
+.vx-rung-hit:disabled {
+  cursor: not-allowed;
+}
+
+.vx-rung {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--voxel-well);
+  box-shadow: inset 0 2px 0 0 var(--voxel-under);
+  transition:
+    background var(--dur-fast) ease,
+    box-shadow var(--dur-fast) ease;
+}
+
+.vx-rung[data-filled="true"] {
+  background: var(--voxel-accent-face);
+  box-shadow: inset 0 2px 0 0 var(--voxel-accent-top);
+}
+
+/* The chosen rung is the only one carrying the bright edge, so the ladder
+   says both "this hard" and "this one". */
+.vx-rung[data-current="true"] {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: -2px;
+}
+
+/* background-color, not the shorthand: the shorthand would out-specify
+   .vx-dither's background-image and erase the unavailable-rung texture. */
+.vx-rung[data-available="false"] {
+  background-color: transparent;
+  box-shadow: inset 0 0 0 1px var(--border);
 }
 
 .vx-button[data-variant="primary"] {
@@ -183,12 +266,19 @@ input::placeholder {
  * column and drowned out the control the user was actually on.
  */
 .vx-panel:focus-visible,
-.vx-button:focus-visible {
+.vx-button:focus-visible,
+.vx-select:focus-visible {
   outline: none;
   box-shadow:
     inset 0 0 0 2px var(--accent-bright),
     inset 0 2px 0 0 var(--voxel-top),
     inset 0 -2px 0 0 var(--voxel-under);
+}
+
+/* The rung has no clip-path of its own, so the ring goes on the hit target. */
+.vx-rung-hit:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: -2px;
 }
 
 /* An eyebrow behaves like the gold inlay on the board frame: thin and rare. */

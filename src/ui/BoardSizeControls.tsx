@@ -14,9 +14,9 @@ interface BoardSizeControlsProps {
   controller: GameController | null;
 }
 
+/* Square, so the two steppers read as a pair of keys rather than two words. */
 const stepStyle: React.CSSProperties = {
-  width: "28px",
-  minHeight: "28px",
+  width: "var(--control-h-sm)",
   padding: 0,
   display: "flex",
   alignItems: "center",
@@ -52,6 +52,7 @@ export function BoardSizeControls({ controller }: BoardSizeControlsProps) {
 
       <button
         className="vx-button"
+        data-size="sm"
         onClick={() => !atMin && setSize(SIZES[currentIndex - 1]!.id)}
         disabled={atMin}
         aria-label="Make the board smaller"
@@ -75,6 +76,7 @@ export function BoardSizeControls({ controller }: BoardSizeControlsProps) {
 
       <button
         className="vx-button"
+        data-size="sm"
         onClick={() => !atMax && setSize(SIZES[currentIndex + 1]!.id)}
         disabled={atMax}
         aria-label="Make the board larger"

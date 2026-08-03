@@ -67,13 +67,10 @@ export function SettingsPanel({ controller, onClose }: SettingsPanelProps) {
             Settings
           </h2>
           <button
+            className="vx-button"
+            data-size="sm"
             onClick={onClose}
             aria-label="Close settings"
-            style={{
-              cursor: "pointer",
-              color: "var(--text-dim)",
-              fontSize: "var(--size-lg)",
-            }}
           >
             ✕
           </button>
@@ -95,30 +92,19 @@ export function SettingsPanel({ controller, onClose }: SettingsPanelProps) {
 
           <div>
             <label
+              className="vx-label"
               htmlFor="settings-max-premoves"
-              style={{
-                display: "block",
-                fontSize: "var(--size-sm)",
-                color: "var(--text-dim)",
-                marginBottom: "var(--sp-1)",
-              }}
+              style={{ display: "block", marginBottom: "var(--sp-2)" }}
             >
-              Max Premoves
+              Max premoves
             </label>
             <select
+              className="vx-select"
               id="settings-max-premoves"
               value={currentMaxPremoves}
               onChange={(e) =>
                 controller?.setMaxPremoves(parseInt(e.target.value, 10))
               }
-              style={{
-                width: "100%",
-                padding: "var(--sp-2)",
-                background: "var(--surface-raised)",
-                border: "1px solid var(--border)",
-                color: "var(--text)",
-                borderRadius: "var(--radius)",
-              }}
             >
               <option value="1" style={optionStyle}>
                 1
@@ -137,28 +123,17 @@ export function SettingsPanel({ controller, onClose }: SettingsPanelProps) {
 
           <div>
             <label
+              className="vx-label"
               htmlFor="settings-theme"
-              style={{
-                display: "block",
-                fontSize: "var(--size-sm)",
-                color: "var(--text-dim)",
-                marginBottom: "var(--sp-1)",
-              }}
+              style={{ display: "block", marginBottom: "var(--sp-2)" }}
             >
               Theme
             </label>
             <select
+              className="vx-select"
               id="settings-theme"
               value={currentTheme}
               onChange={(e) => controller?.setTheme(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "var(--sp-2)",
-                background: "var(--surface-raised)",
-                border: "1px solid var(--border)",
-                color: "var(--text)",
-                borderRadius: "var(--radius)",
-              }}
             >
               {Object.values(THEMES).map((th) => (
                 <option key={th.id} value={th.id} style={optionStyle}>
@@ -192,17 +167,10 @@ export function SettingsPanel({ controller, onClose }: SettingsPanelProps) {
         </div>
 
         <button
+          className="vx-button"
+          data-variant="primary"
           onClick={onClose}
-          style={{
-            marginTop: "var(--sp-6)",
-            width: "100%",
-            padding: "var(--sp-2)",
-            background: "var(--accent)",
-            color: "var(--bg)",
-            fontWeight: "bold",
-            borderRadius: "var(--radius)",
-            cursor: "pointer",
-          }}
+          style={{ marginTop: "var(--sp-6)", width: "100%" }}
         >
           Close
         </button>

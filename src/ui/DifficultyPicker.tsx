@@ -64,7 +64,7 @@ export function DifficultyPicker({ controller }: DifficultyPickerProps) {
           return (
             <button
               key={lvl.id}
-              className={disabled ? "vx-dither" : undefined}
+              className="vx-rung-hit"
               aria-pressed={isCurrent}
               aria-label={`Level ${lvl.id}, ${lvl.label}, about ${lvl.approxElo} Elo`}
               disabled={disabled}
@@ -73,31 +73,14 @@ export function DifficultyPicker({ controller }: DifficultyPickerProps) {
                   controller.startNewGame({ difficulty: lvl.id });
                 }
               }}
-              style={{
-                flex: 1,
-                minWidth: 0,
-                height: "44px",
-                cursor: disabled ? "not-allowed" : "pointer",
-                background: disabled
-                  ? "transparent"
-                  : isFilled
-                    ? "var(--voxel-accent-face)"
-                    : "var(--voxel-well)",
-                boxShadow: disabled
-                  ? "inset 0 0 0 1px var(--border)"
-                  : isFilled
-                    ? "inset 0 2px 0 0 var(--voxel-accent-top)"
-                    : "inset 0 2px 0 0 var(--voxel-under)",
-                // The chosen rung is the only one that carries the bright
-                // edge, so the ladder says both "this hard" and "this one".
-                outline: isCurrent
-                  ? "2px solid var(--accent-bright)"
-                  : undefined,
-                outlineOffset: "-2px",
-                transition:
-                  "background var(--dur-fast) ease, box-shadow var(--dur-fast) ease",
-              }}
-            />
+            >
+              <span
+                className={disabled ? "vx-rung vx-dither" : "vx-rung"}
+                data-filled={!disabled && isFilled}
+                data-current={isCurrent}
+                data-available={!disabled}
+              />
+            </button>
           );
         })}
       </div>

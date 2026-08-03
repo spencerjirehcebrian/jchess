@@ -22,6 +22,7 @@ export class OverlayManager {
   private lastMoveFromQuad: THREE.Mesh;
   private lastMoveToQuad: THREE.Mesh;
   private selectedSquareQuad: THREE.Mesh;
+  private hoverSquareQuad: THREE.LineSegments;
   private legalDotsGroup = new THREE.Group();
   private legalDotsPool: THREE.Mesh[] = [];
   private legalDotMaterial: THREE.MeshBasicMaterial;
@@ -84,6 +85,22 @@ export class OverlayManager {
     this.selectedSquareQuad = new THREE.Mesh(squareGeo, selMat);
     this.selectedSquareQuad.visible = false;
     this.group.add(this.selectedSquareQuad);
+
+    // Where a dragged piece would land. An outline, not a wash: the piece
+    // hangs over this square while you aim, and would cover a fill.
+    // EdgesGeometry drops the plane's coplanar diagonal, leaving four sides.
+    const hoverMat = new THREE.LineBasicMaterial({
+      color: new THREE.Color(theme.cssTokens.accentBright),
+      transparent: true,
+      opacity: 0.9,
+      depthWrite: false,
+    });
+    this.hoverSquareQuad = new THREE.LineSegments(
+      new THREE.EdgesGeometry(squareGeo),
+      hoverMat,
+    );
+    this.hoverSquareQuad.visible = false;
+    this.group.add(this.hoverSquareQuad);
 
     // Legal move dots pool (up to 28)
     const dotGeo = new THREE.CircleGeometry(0.12, 16);
@@ -156,6 +173,17 @@ export class OverlayManager {
     }
   }
 
+  /** The square a dragged piece would land on. */
+  setHoverSquare(square: Square | null, boardFlipped: boolean) {
+    if (square !== null) {
+      const pos = squareToWorld(square, boardFlipped);
+      this.hoverSquareQuad.position.set(pos.x, 0.005, pos.z);
+      this.hoverSquareQuad.visible = true;
+    } else {
+      this.hoverSquareQuad.visible = false;
+    }
+  }
+
   setLegalMoveDots(
     squares: Square[],
     boardFlipped: boolean,
@@ -210,6 +238,7 @@ export class OverlayManager {
     this.lastMoveFromQuad.visible = false;
     this.lastMoveToQuad.visible = false;
     this.selectedSquareQuad.visible = false;
+    this.hoverSquareQuad.visible = false;
     for (const dot of this.legalDotsPool) {
       dot.visible = false;
     }
@@ -228,6 +257,8 @@ export class OverlayManager {
       detailColor;
     (this.selectedSquareQuad.material as THREE.MeshBasicMaterial).color =
       detailColor;
+    (this.hoverSquareQuad.material as THREE.LineBasicMaterial).color =
+      new THREE.Color(theme.cssTokens.accentBright);
     this.legalDotMaterial.color = detailColor;
     this.premoveDotMaterial.color = new THREE.Color(theme.cssTokens.premove);
   }
@@ -241,6 +272,8 @@ export class OverlayManager {
     this.premoveDotMaterial.dispose();
     this.flashMaterial.dispose();
     this.flashPool = [];
+    this.hoverSquareQuad.geometry.dispose();
+    (this.hoverSquareQuad.material as THREE.Material).dispose();
     this.impactRingMesh.geometry.dispose();
     (this.impactRingMesh.material as THREE.Material).dispose();
     this.lastMoveFromQuad.geometry.dispose();

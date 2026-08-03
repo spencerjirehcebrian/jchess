@@ -27,3 +27,46 @@ Copied at build/dev setup into `public/engine/`.
 ## Licence Strategy
 
 Stockfish is GPL-3.0. The licence file is bundled in `/licenses/GPL-3.0.txt` and linked from the UI footer. Application source code is released under GPL-3.0.
+
+## Piece Identity in the Renderer
+
+`PieceManager` keys rendered pieces on the square they occupy, and only two
+things move them: `syncPosition`, which reconciles square by square and never
+migrates a mesh between squares, and `applyMove`, which is told exactly which
+mesh went where by the caller that already derived it.
+
+This replaced matching by `(role, colour)` with an insertion-order fallback.
+With no identity to appeal to, that scheme could hand a square the wrong mesh
+and then sweep the right one out of the scene, so pieces disappeared from the
+board while the position still held them. Anything that needs the board to
+change must go through one of those two methods; do not reintroduce a matcher
+that guesses which mesh a square wants.
+
+Cancelling a move animation runs the same settle path as finishing one,
+including the captured and rook meshes, and fires `onComplete`. A move that is
+interrupted has still happened — the position already contains it.
+
+## Two Typefaces
+
+Archivo names things (wordmark, players, and every control, set condensed and
+uppercase); Departure Mono states them (moves, clocks, notation, coordinates).
+
+IBM Plex Sans was dropped. `docs/09-ui-design.md` had assigned it prose,
+buttons and settings, but the app has almost no prose, so in practice it only
+ever appeared on the controls — the most-looked-at chrome — with no
+relationship to the display face or to the board.
+
+## Drag Deviations from docs/08-input.md
+
+The drag implementation follows the spec's state machine, 4px threshold,
+`setPointerCapture`, `0.6 * squareSize` lift, and legal-target-only highlight.
+Two deliberate departures:
+
+- **The contact shadow shrinks and dims with height rather than enlarging.**
+  The spec asks for an enlarged, softened shadow, but the move-arc animation
+  already shrinks and dims (`animation/engine.ts`), and a dragged piece and a
+  moving piece should read the same way. Consistency won.
+- **A drag that commits a move skips the flight animation.** The player has
+  already carried the piece to its square; replaying the arc would drag it back
+  to the origin first. Moves the player did not make by hand — engine replies,
+  premove drains, notation entry — still animate.

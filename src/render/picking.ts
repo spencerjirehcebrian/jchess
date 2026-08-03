@@ -43,6 +43,26 @@ export function squareToWorld(
   return new THREE.Vector3(x, 0, z);
 }
 
+/**
+ * Where the pointer meets the playing surface, in world space. Returns a point
+ * even when it falls outside the eight-by-eight, so a drag can follow the
+ * cursor off the edge of the board instead of sticking at the last square.
+ */
+export function raycastToBoard(
+  event: PointerEvent,
+  canvas: HTMLCanvasElement,
+  camera: THREE.Camera,
+  raycaster: THREE.Raycaster,
+): THREE.Vector3 | null {
+  const rect = canvas.getBoundingClientRect();
+  const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+  raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
+  const target = new THREE.Vector3();
+  return raycaster.ray.intersectPlane(BOARD_PLANE, target) ? target : null;
+}
+
 export function raycastToSquare(
   event: PointerEvent,
   canvas: HTMLCanvasElement,
@@ -50,14 +70,7 @@ export function raycastToSquare(
   raycaster: THREE.Raycaster,
   boardFlipped: boolean,
 ): Square | null {
-  const rect = canvas.getBoundingClientRect();
-  const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-  const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-
-  raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
-  const target = new THREE.Vector3();
-  const hit = raycaster.ray.intersectPlane(BOARD_PLANE, target);
-  if (!hit) return null;
-
-  return worldToSquare(target, boardFlipped);
+  const point = raycastToBoard(event, canvas, camera, raycaster);
+  if (!point) return null;
+  return worldToSquare(point, boardFlipped);
 }

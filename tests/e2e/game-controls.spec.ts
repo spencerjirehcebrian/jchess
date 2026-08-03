@@ -28,19 +28,19 @@ test.describe("Game Controls E2E", () => {
   });
 
   test("opens and closes settings modal panel", async ({ page }) => {
-    const settingsBtn = page.getByRole("button", { name: "Settings" }).first();
+    const settingsBtn = page.getByRole("button", { name: /^Settings$/i }).first();
     await settingsBtn.click();
 
     // Verify settings modal title and options
     await expect(page.getByRole("heading", { name: "SETTINGS" })).toBeVisible();
-    await expect(page.getByText("Max Premoves")).toBeVisible();
-    await expect(page.getByText("Theme")).toBeVisible();
+    await expect(page.getByText(/Max premoves/i)).toBeVisible();
+    await expect(page.getByText(/^Theme$/i)).toBeVisible();
     await expect(
       page.getByText("Stockfish engine engine GPL-3.0."),
     ).toBeVisible();
 
     // Close settings modal
-    const closeBtn = page.getByRole("button", { name: "Close", exact: true });
+    const closeBtn = page.getByRole("button", { name: /^Close$/i });
     await closeBtn.click();
 
     await expect(
@@ -54,7 +54,7 @@ test.describe("Game Controls E2E", () => {
 
     // Board size is set once and forgotten, so the stepper lives in settings
     // rather than holding space in the header.
-    await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByRole("button", { name: /^Settings$/i }).click();
 
     const decBtn = page.getByRole("button", { name: "Make the board smaller" });
     await expect(decBtn).toBeVisible();

@@ -4,7 +4,8 @@ import { createScene, createBackground } from "./scene";
 import { meshBoard } from "./voxel/mesher";
 import { PieceManager } from "./pieces";
 import { OverlayManager } from "./overlay";
-import { raycastToSquare, squareToWorld } from "./picking";
+import { raycastToBoard, raycastToSquare, squareToWorld } from "./picking";
+import { PieceDragController, DRAG_THRESHOLD_PX } from "./drag";
 import { AnimationEngine, PieceAnimTarget } from "./animation/engine";
 import { Square } from "../core/types";
 import { Store } from "../store";
@@ -22,6 +23,7 @@ export class Renderer {
   private pieceManager: PieceManager;
   private overlayManager: OverlayManager;
   private animEngine = new AnimationEngine();
+  private dragController = new PieceDragController();
   private raycaster = new THREE.Raycaster();
 
   private dirty = true;
@@ -32,9 +34,32 @@ export class Renderer {
   private hoveredSquare: Square | null = null;
   private currentBoardSize: string = "full";
 
+  // A press becomes a drag only after it travels; below the threshold it falls
+  // through untouched to the click-to-select path.
+  private pressSquare: Square | null = null;
+  private pressClient: { x: number; y: number } | null = null;
+  private pressPointerId: number | null = null;
+  private pressCanDrag = false;
+  private lastDragMoveTime = 0;
+  private lastFrameTime = 0;
+
+  /**
+   * Set when a move arrives that the player has already made with their hand.
+   * Flying the piece from its origin would rewind the drag they just finished.
+   */
+  private skipNextMoveAnimation = false;
+
   public onSquarePointerDown?: (square: Square, event: PointerEvent) => void;
   public onSquarePointerUp?: (square: Square, event: PointerEvent) => void;
   public onSquareHover?: (square: Square | null) => void;
+
+  /** Answers whether the square holds a piece this player may pick up. */
+  public canDragFrom?: (square: Square) => boolean;
+  /** Answers whether dropping on `to` would be a move. */
+  public isDropTarget?: (from: Square, to: Square) => boolean;
+  /** Commits the drop. Returns false when the move was refused. */
+  public onDrop?: (from: Square, to: Square | null) => boolean;
+  public onDragStateChange?: (from: Square | null) => void;
 
   constructor(canvas: HTMLCanvasElement, theme?: Theme) {
     this.canvas = canvas;
@@ -81,6 +106,7 @@ export class Renderer {
     this.handlePointerDown = this.handlePointerDown.bind(this);
     this.handlePointerUp = this.handlePointerUp.bind(this);
     this.handlePointerMove = this.handlePointerMove.bind(this);
+    this.handlePointerCancel = this.handlePointerCancel.bind(this);
   }
 
   mount(): void {
@@ -95,6 +121,7 @@ export class Renderer {
     this.canvas.addEventListener("pointerdown", this.handlePointerDown);
     this.canvas.addEventListener("pointerup", this.handlePointerUp);
     this.canvas.addEventListener("pointermove", this.handlePointerMove);
+    this.canvas.addEventListener("pointercancel", this.handlePointerCancel);
 
     this.requestRender();
   }
@@ -118,6 +145,7 @@ export class Renderer {
     this.canvas.removeEventListener("pointerdown", this.handlePointerDown);
     this.canvas.removeEventListener("pointerup", this.handlePointerUp);
     this.canvas.removeEventListener("pointermove", this.handlePointerMove);
+    this.canvas.removeEventListener("pointercancel", this.handlePointerCancel);
 
     this.animEngine.debrisManager.dispose();
     this.pieceManager.dispose();
@@ -199,6 +227,11 @@ export class Renderer {
         currentCursor === prevCursor + 1 &&
         historyToRender.length > 0;
 
+      // Consumed by whichever branch handles this change, so a drag that was
+      // refused cannot leave the flag armed for the engine's next reply.
+      const skipAnimation = positionChanged && this.skipNextMoveAnimation;
+      if (positionChanged) this.skipNextMoveAnimation = false;
+
       if (!positionChanged) {
         // Overlay-only update: leave any in-flight animation alone.
       } else if (isLiveSingleMove) {
@@ -254,87 +287,67 @@ export class Renderer {
           }
         }
 
-        const movingRendered = this.pieceManager.getPieceAt(lastMove.from);
-        const capturedRendered =
-          capturedSquare !== null
-            ? this.pieceManager.getPieceAt(capturedSquare)
-            : null;
-        const rookRendered =
-          isCastle && rookFrom !== undefined
-            ? this.pieceManager.getPieceAt(rookFrom)
-            : null;
+        // Settle the previous move before touching the board, so its captured
+        // piece is discarded and every mesh is back at rest. Cancelling after
+        // the fact used to leave a half-tumbled mesh in play.
+        this.animEngine.cancelAll();
 
-        if (movingRendered) {
-          const skipSquares = new Set<Square>([lastMove.to]);
-          if (rookTo !== undefined) skipSquares.add(rookTo);
+        const applied = this.pieceManager.applyMove({
+          from: lastMove.from,
+          to: lastMove.to,
+          promotion: lastMove.promotion,
+          capturedSquare: capturedSquare ?? undefined,
+          rookFrom,
+          rookTo,
+        });
 
-          const updateOpts: {
-            skipSquares?: Set<Square>;
-            retainedIds?: Set<string>;
-          } = {
-            skipSquares,
-          };
-          if (capturedRendered) {
-            updateOpts.retainedIds = new Set<string>([capturedRendered.id]);
-          }
+        if (applied && skipAnimation) {
+          // The player carried this piece to its square themselves. Settle it
+          // where it now stands instead of flying it back to replay the move.
+          this.pieceManager.syncPosition(currentPos, this.boardFlipped);
+        } else if (applied) {
+          const { moved, captured, rook } = applied;
 
-          this.pieceManager.updatePosition(
-            currentPos,
-            this.boardFlipped,
-            updateOpts,
-          );
-
-          this.animEngine.cancelAll();
-
-          const capturedId = capturedRendered?.id;
           const animTarget: PieceAnimTarget = {
-            mesh: movingRendered.mesh,
-            shadowQuad: movingRendered.shadowQuad,
+            mesh: moved.mesh,
+            shadowQuad: moved.shadowQuad,
             fromSquare: lastMove.from,
             toSquare: lastMove.to,
             durationMs: 220,
             isKnight,
-            isCapture: !!capturedRendered,
+            isCapture: !!captured,
             isCastle,
             isPromotion: !!lastMove.promotion,
           };
 
-          if (capturedRendered) {
-            animTarget.capturedMesh = capturedRendered.mesh;
-            animTarget.capturedShadowQuad = capturedRendered.shadowQuad;
-            animTarget.capturedRole = capturedRendered.role;
-            animTarget.capturedColor = capturedRendered.color;
+          if (captured) {
+            animTarget.capturedMesh = captured.mesh;
+            animTarget.capturedShadowQuad = captured.shadowQuad;
+            animTarget.capturedRole = captured.role;
+            animTarget.capturedColor = captured.color;
             animTarget.palette =
-              capturedRendered.color === "white"
-                ? this.theme.white
-                : this.theme.black;
+              captured.color === "white" ? this.theme.white : this.theme.black;
             animTarget.impactRing = this.overlayManager.impactRingMesh;
           }
 
-          if (
-            isCastle &&
-            rookRendered &&
-            rookFrom !== undefined &&
-            rookTo !== undefined
-          ) {
-            animTarget.rookMesh = rookRendered.mesh;
-            animTarget.rookShadowQuad = rookRendered.shadowQuad;
+          if (rook && rookFrom !== undefined && rookTo !== undefined) {
+            animTarget.rookMesh = rook.mesh;
+            animTarget.rookShadowQuad = rook.shadowQuad;
             animTarget.rookFromSquare = rookFrom;
             animTarget.rookToSquare = rookTo;
           }
 
           this.animEngine.animateMove(animTarget, this.boardFlipped, () => {
-            if (capturedId) {
-              this.pieceManager.removePiece(capturedId);
-            }
+            if (captured) this.pieceManager.discardSettling(captured);
           });
         } else {
-          this.animEngine.cancelAll();
-          this.pieceManager.updatePosition(currentPos, this.boardFlipped);
+          // No mesh on the from-square: the board and the position have drifted
+          // apart, so rebuild rather than guess.
+          this.pieceManager.syncPosition(currentPos, this.boardFlipped);
         }
       } else {
         this.animEngine.cancelAll();
-        this.pieceManager.updatePosition(currentPos, this.boardFlipped);
+        this.pieceManager.syncPosition(currentPos, this.boardFlipped);
       }
 
       prevCursor = currentCursor;
@@ -410,15 +423,19 @@ export class Renderer {
     const isAnimating = this.animEngine.update(t);
     const physics = this.animEngine.getBoardTransform();
 
+    const dragDt = (t - this.lastFrameTime) / 1000;
+    this.lastFrameTime = t;
+    const isSwinging = this.dragController.update(dragDt);
+
     this.boardContainerGroup.position.copy(physics.positionOffset);
     this.boardContainerGroup.rotation.copy(physics.rotationOffset);
 
-    if (this.dirty || isAnimating || physics.isActive) {
+    if (this.dirty || isAnimating || physics.isActive || isSwinging) {
       this.webglRenderer.render(this.scene, this.camera);
       this.dirty = false;
     }
 
-    if (isAnimating || physics.isActive) {
+    if (isAnimating || physics.isActive || isSwinging) {
       this.requestRender();
     }
   }
@@ -546,6 +563,8 @@ export class Renderer {
   }
 
   private handlePointerDown(e: PointerEvent): void {
+    if (e.button !== undefined && e.button !== 0) return;
+
     const sq = raycastToSquare(
       e,
       this.canvas,
@@ -553,12 +572,44 @@ export class Renderer {
       this.raycaster,
       this.boardFlipped,
     );
-    if (sq !== null && this.onSquarePointerDown) {
+    if (sq === null) return;
+
+    // Asked before the click is handled. A square holding your own piece can
+    // only ever be a selection, never a destination — castling is encoded as
+    // the king's own destination square, so a click on your rook is not a move.
+    this.pressCanDrag = this.canDragFrom ? this.canDragFrom(sq) : false;
+    this.pressSquare = sq;
+    this.pressClient = { x: e.clientX, y: e.clientY };
+    this.pressPointerId = e.pointerId;
+
+    if (this.pressCanDrag) {
+      try {
+        this.canvas.setPointerCapture(e.pointerId);
+      } catch {
+        // Capture is a convenience; without it the drag simply ends at the
+        // canvas edge.
+      }
+    }
+
+    if (this.onSquarePointerDown) {
       this.onSquarePointerDown(sq, e);
     }
   }
 
   private handlePointerUp(e: PointerEvent): void {
+    if (this.dragController.isDragging()) {
+      const to = raycastToSquare(
+        e,
+        this.canvas,
+        this.camera,
+        this.raycaster,
+        this.boardFlipped,
+      );
+      this.finishDrag(to);
+      this.clearPress(e);
+      return;
+    }
+
     const sq = raycastToSquare(
       e,
       this.canvas,
@@ -569,9 +620,35 @@ export class Renderer {
     if (sq !== null && this.onSquarePointerUp) {
       this.onSquarePointerUp(sq, e);
     }
+    this.clearPress(e);
+  }
+
+  private handlePointerCancel(e: PointerEvent): void {
+    if (this.dragController.isDragging()) this.cancelDrag();
+    this.clearPress(e);
   }
 
   private handlePointerMove(e: PointerEvent): void {
+    if (this.dragController.isDragging()) {
+      this.updateDrag(e);
+      return;
+    }
+
+    if (
+      this.pressCanDrag &&
+      this.pressSquare !== null &&
+      this.pressClient !== null &&
+      (this.pressPointerId === null || e.pointerId === this.pressPointerId)
+    ) {
+      const dx = e.clientX - this.pressClient.x;
+      const dy = e.clientY - this.pressClient.y;
+      if (Math.hypot(dx, dy) >= DRAG_THRESHOLD_PX) {
+        this.beginDrag(this.pressSquare, e);
+        return;
+      }
+    }
+
+    // Hover is a pointing-device affordance; a finger has no hover state.
     if (e.pointerType === "touch") return;
     const sq = raycastToSquare(
       e,
@@ -586,5 +663,107 @@ export class Renderer {
         this.onSquareHover(sq);
       }
     }
+  }
+
+  private clearPress(e?: PointerEvent): void {
+    if (e && this.pressPointerId !== null) {
+      try {
+        if (this.canvas.hasPointerCapture(e.pointerId)) {
+          this.canvas.releasePointerCapture(e.pointerId);
+        }
+      } catch {
+        // Already released, or the browser dropped the capture for us.
+      }
+    }
+    this.pressSquare = null;
+    this.pressClient = null;
+    this.pressPointerId = null;
+    this.pressCanDrag = false;
+  }
+
+  private beginDrag(from: Square, e: PointerEvent): void {
+    const piece = this.pieceManager.getPieceAt(from);
+    const world = raycastToBoard(e, this.canvas, this.camera, this.raycaster);
+    if (!piece || !world) return;
+
+    // A piece in the player's hand is not the animation's to move.
+    this.animEngine.cancelAll();
+    this.pieceManager.holdPiece(from);
+    this.dragController.begin(piece, from, world);
+    this.lastDragMoveTime = performance.now();
+
+    this.canvas.style.cursor = "grabbing";
+    // The origin is not somewhere you can land, so it starts unmarked; the
+    // selection wash under the piece already says where it came from.
+    this.overlayManager.setHoverSquare(null, this.boardFlipped);
+    this.onDragStateChange?.(from);
+    this.requestRender();
+  }
+
+  private updateDrag(e: PointerEvent): void {
+    const world = raycastToBoard(e, this.canvas, this.camera, this.raycaster);
+    if (!world) return;
+
+    const now = performance.now();
+    this.dragController.moveTo(world, (now - this.lastDragMoveTime) / 1000);
+    this.lastDragMoveTime = now;
+
+    // The square under the cursor is the drop target, not the square under the
+    // lifted piece — the piece hangs above and behind where you are pointing.
+    // Only a square you could actually land on is marked, so the outline is an
+    // answer rather than a cursor readout (docs/08-input.md).
+    const from = this.dragController.getFromSquare();
+    const target = raycastToSquare(
+      e,
+      this.canvas,
+      this.camera,
+      this.raycaster,
+      this.boardFlipped,
+    );
+    const legal =
+      target !== null &&
+      from !== null &&
+      (this.isDropTarget?.(from, target) ?? true);
+    this.overlayManager.setHoverSquare(legal ? target : null, this.boardFlipped);
+    this.requestRender();
+  }
+
+  private finishDrag(to: Square | null): void {
+    const held = this.dragController.end();
+    this.canvas.style.cursor = "";
+    this.overlayManager.setHoverSquare(null, this.boardFlipped);
+
+    if (!held) return;
+
+    const committed =
+      to !== null && to !== held.from ? (this.onDrop?.(held.from, to) ?? false) : false;
+
+    if (committed) {
+      // The player has already carried the piece there; replaying the flight
+      // would drag it back to where it started first.
+      this.skipNextMoveAnimation = true;
+    }
+
+    // Either way the mesh returns to the board: onto its new square once the
+    // store update lands, or back onto the one it came from.
+    this.pieceManager.releasePiece(this.boardFlipped);
+    this.onDragStateChange?.(null);
+    this.requestRender();
+  }
+
+  private cancelDrag(): void {
+    if (!this.dragController.isDragging()) return;
+    this.dragController.end();
+    this.canvas.style.cursor = "";
+    this.overlayManager.setHoverSquare(null, this.boardFlipped);
+    this.pieceManager.releasePiece(this.boardFlipped);
+    this.onDragStateChange?.(null);
+    this.requestRender();
+  }
+
+  /** Aborts a drag in progress; used by Escape and by right-click. */
+  public abortDrag(): void {
+    this.cancelDrag();
+    this.clearPress();
   }
 }

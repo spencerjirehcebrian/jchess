@@ -48,16 +48,32 @@
   --voxel-accent-top: #c9a227;
   --voxel-accent-under: #6e5915;
 
-  /* Type */
+  /*
+   * Type — two faces, and each owns a job.
+   *
+   * Archivo names things: the wordmark, the players, every control. Its width
+   * axis is what makes a button legible at 13px in condensed caps, and it is
+   * the same face the eyebrows already used, so a button and a label are now
+   * the same voice at two volumes.
+   *
+   * Departure Mono states them: moves, clocks, notation, coordinates. It is
+   * drawn on a pixel grid, the same grammar as the pieces.
+   *
+   * A third face used to sit on the buttons — the most-looked-at chrome in the
+   * app — with no relationship to either of these or to the board.
+   */
   --font-display: "Archivo", system-ui, sans-serif;
-  --font-body: "IBM Plex Sans", system-ui, sans-serif;
+  --font-body: "Archivo", system-ui, sans-serif;
   --font-mono: "Departure Mono", ui-monospace, monospace;
 
   --size-xs: 0.6875rem; /* 11px — labels, eyebrows */
-  --size-sm: 0.8125rem; /* 13px — move list, secondary */
-  --size-md: 0.9375rem; /* 15px — body */
+  --size-sm: 0.8125rem; /* 13px — controls, move list, secondary */
   --size-lg: 1.375rem; /* 22px — notation field */
   --size-xl: 1.75rem; /* 28px — clocks, result */
+
+  /* Controls — one height for every button, select and field in the rail. */
+  --control-h: 40px;
+  --control-h-sm: 28px;
 
   /* Space — one UI voxel is 4px, and every gap is a whole number of them */
   --vx: 4px;

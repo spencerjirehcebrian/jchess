@@ -56,40 +56,6 @@ export function App() {
         color: "var(--text)",
       }}
     >
-      {/* Header. The gold rule beneath it is the board's inlay line, continued. */}
-      <header
-        style={{
-          height: "56px",
-          padding: "0 var(--sp-6)",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          borderBottom: "2px solid var(--accent-dim)",
-          background: "var(--surface)",
-          flexShrink: 0,
-        }}
-      >
-        {/*
-          The wordmark alone. Level used to sit beside it and now reads twice
-          in the rail — on the engine's own row and on the ladder — so a third
-          copy here was only filling space.
-        */}
-        <h1
-          style={{
-            fontFamily: "var(--font-display)",
-            fontSize: "1.0625rem",
-            fontWeight: 700,
-            fontStretch: "120%",
-            letterSpacing: "0.22em",
-            textTransform: "uppercase",
-            color: "var(--text)",
-          }}
-        >
-          jchess
-        </h1>
-
-      </header>
-
       {/* Main Layout */}
       <main
         className="app-main-layout"
@@ -141,6 +107,29 @@ export function App() {
             overflow: "hidden",
           }}
         >
+          {/*
+            The nameplate. It used to be a full-width header bar above both
+            columns, which cost the board 56px to say one word. On the rail it
+            names the instrument it sits on, and the gold rule beneath it — the
+            board's inlay line, continued — still caps the column.
+          */}
+          <h1
+            style={{
+              fontFamily: "var(--font-display)",
+              fontSize: "1.0625rem",
+              fontWeight: 700,
+              fontStretch: "120%",
+              letterSpacing: "0.22em",
+              textTransform: "uppercase",
+              color: "var(--text)",
+              padding: "var(--sp-3) var(--sp-3) var(--sp-2)",
+              borderBottom: "2px solid var(--accent-dim)",
+              flexShrink: 0,
+            }}
+          >
+            jchess
+          </h1>
+
           <PlayerRow side="engine" />
 
           <MoveList controller={controller} />

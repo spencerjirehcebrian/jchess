@@ -30,9 +30,15 @@ function SearchIndicator({ depth }: { depth: number }) {
 }
 
 /**
- * Captured pieces, drawn with the same voxel grids the board renders. The
- * icons are the assets, not a second set of illustrations that would drift
+ * A rack of captured pieces, drawn with the same voxel grids the board renders.
+ * The icons are the assets, not a second set of illustrations that would drift
  * from them.
+ *
+ * It is a recess — a voxel removed, the inverse of the raised panels around it
+ * — and it holds its height whether it is full or empty. Both facts matter: the
+ * rack used to collapse to nothing before the first capture, so a player who
+ * had taken no pieces appeared to have no tray at all, and it grew a row at a
+ * time as the game went on, shifting everything below it in the rail.
  */
 function Trophies({ counts, of }: { counts: RoleCounts; of: Color }) {
   const themeId = useGameStore((s) => s.theme) ?? "lacquer";
@@ -46,18 +52,26 @@ function Trophies({ counts, of }: { counts: RoleCounts; of: Color }) {
     }
   }
 
-  // No placeholder when empty. An empty row inside a named player reads as
-  // "nothing taken yet" on its own; a word there would only be noise.
   return (
     <div
+      className={sprites.length === 0 ? "vx-dither" : undefined}
       style={{
         display: "flex",
-        alignItems: "flex-end",
+        alignItems: "flex-start",
+        alignContent: "flex-start",
         flexWrap: "wrap",
         gap: "1px",
         flex: 1,
         minWidth: 0,
-        minHeight: "20px",
+        // Two rows of sprites plus the gap between them. A side can lose at
+        // most fifteen pieces and roughly twenty fit across the rail, so the
+        // rack never needs a third row and never has to reflow the column.
+        height: "45px",
+        overflow: "hidden",
+        padding: "2px",
+        background: "var(--voxel-well)",
+        boxShadow:
+          "inset 0 2px 0 0 var(--voxel-under), inset 0 -1px 0 0 var(--voxel-top)",
       }}
     >
       {sprites.map(({ role, key }) => {
@@ -152,9 +166,21 @@ export function PlayerRow({ side }: PlayerRowProps) {
         gap: "var(--sp-3)",
       }}
     >
+      {/*
+        A name, not an eyebrow. At label size the two players read smaller than
+        the level readout beside them, which put the least important number in
+        the row above the people playing.
+      */}
       <span
-        className="vx-label"
-        style={{ color: isActive ? "var(--text)" : "var(--text-faint)" }}
+        style={{
+          fontFamily: "var(--font-display)",
+          fontSize: "var(--size-sm)",
+          fontWeight: 700,
+          fontStretch: "112%",
+          letterSpacing: "0.1em",
+          textTransform: "uppercase",
+          color: isActive ? "var(--text)" : "var(--text-dim)",
+        }}
       >
         {name}
       </span>
@@ -196,24 +222,30 @@ export function PlayerRow({ side }: PlayerRowProps) {
     <div
       style={{
         display: "flex",
-        alignItems: "flex-end",
+        alignItems: "stretch",
         gap: "var(--sp-2)",
       }}
     >
       <Trophies counts={trophies[color]} of={opposite(color)} />
-      {lead > 0 && (
-        <span
-          style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: "var(--size-sm)",
-            color: "var(--accent)",
-            whiteSpace: "nowrap",
-          }}
-          aria-label={`${lead} points ahead`}
-        >
-          +{lead}
-        </span>
-      )}
+      {/*
+        Anchored to the rack rather than floated beside it, so the pair reads
+        as one instrument: the pieces taken, and what they came to.
+      */}
+      <span
+        style={{
+          display: "flex",
+          alignItems: "center",
+          fontFamily: "var(--font-mono)",
+          fontSize: "var(--size-sm)",
+          color: lead > 0 ? "var(--accent)" : "var(--text-faint)",
+          whiteSpace: "nowrap",
+          minWidth: "3ch",
+          justifyContent: "flex-end",
+        }}
+        {...(lead > 0 ? { "aria-label": `${lead} points ahead` } : {})}
+      >
+        {lead > 0 ? `+${lead}` : "·"}
+      </span>
     </div>
   );
 

@@ -65,15 +65,24 @@ export function BoardCanvas({ controller }: BoardCanvasProps) {
     // canvas (docs/08-input.md).
     const onContextMenu = (e: MouseEvent) => {
       e.preventDefault();
+      renderer.abortDrag();
       controller?.clearPremoves();
       controller?.setSelectedSquare(null);
       setPendingPromotion(null);
     };
     canvas.addEventListener("contextmenu", onContextMenu);
 
-    renderer.onSquarePointerDown = (square) => {
-      if (!controller) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") renderer.abortDrag();
+    };
+    window.addEventListener("keydown", onKeyDown);
 
+    /**
+     * Everything a pointer interaction needs to know about the position right
+     * now. Both the click path and the drag path read from this, so premove
+     * mode and the never-silently-queen rule hold identically for each.
+     */
+    const readContext = () => {
       const currentState = useGameStore.getState();
       const currentPos = positionAfter(
         currentState.initialFen,
@@ -102,6 +111,66 @@ export function BoardCanvas({ controller }: BoardCanvasProps) {
         inPremoveMode
           ? generatePremoves(premoveBase, from)
           : legalMovesFrom(currentPos, from);
+
+      return { currentState, movingColor, isOwnPiece, candidatesFrom };
+    };
+
+    // A square holding one of your own pieces can only ever be a selection,
+    // never a destination, so arming a drag from it can never race the click.
+    renderer.canDragFrom = (square) => {
+      if (!controller) return false;
+      return readContext().isOwnPiece(square);
+    };
+
+    renderer.isDropTarget = (from, to) => {
+      if (!controller) return false;
+      return readContext()
+        .candidatesFrom(from)
+        .some((m) => m.to === to);
+    };
+
+    renderer.onDrop = (from, to) => {
+      if (!controller || to === null) return false;
+
+      const { movingColor, candidatesFrom } = readContext();
+      const target = selectPointerTarget(candidatesFrom(from), to);
+
+      if (target.kind === "promotion") {
+        setPendingPromotion({
+          from,
+          to,
+          color: movingColor,
+          anchor: renderer.squareToScreen(to),
+        });
+        // Nothing is committed until the piece is chosen, so the dragged piece
+        // goes home and the picker takes over.
+        return false;
+      }
+
+      if (target.kind === "none") return false;
+
+      return controller.makeMove(target.move);
+    };
+
+    // Picking a piece up selects it, so the destination dots are lit while you
+    // aim. Without this, dragging a piece that was already selected would clear
+    // the selection on the way down and drop the dots mid-drag.
+    renderer.onDragStateChange = (from) => {
+      if (from !== null) controller?.setSelectedSquare(from);
+    };
+
+    // The only cue that a piece can be picked up at all.
+    renderer.onSquareHover = (square) => {
+      const grabbable =
+        !!controller && square !== null && readContext().isOwnPiece(square);
+      canvas.style.cursor = grabbable ? "grab" : "";
+    };
+
+    renderer.onSquarePointerDown = (square) => {
+      if (!controller) return;
+
+      const { currentState, movingColor, isOwnPiece, candidatesFrom } =
+        readContext();
 
       if (currentState.selectedSquare === null) {
         if (isOwnPiece(square)) {
@@ -146,6 +215,7 @@ export function BoardCanvas({ controller }: BoardCanvasProps) {
 
     return () => {
       canvas.removeEventListener("contextmenu", onContextMenu);
+      window.removeEventListener("keydown", onKeyDown);
       if (controller?.onPremoveFailed) controller.onPremoveFailed = null;
       detach();
       renderer.dispose();

@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { Square, Role, Color } from "../../core/types";
 import { squareToWorld } from "../picking";
 import { Palette, THEMES } from "../voxel/palette";
+import { SHADOW_REST_OPACITY } from "../pieces";
 import { VoxelDebrisManager } from "./debris";
 import { BoardPhysicsEngine } from "./shake";
 
@@ -149,7 +150,7 @@ export class AnimationEngine {
 
       // Shadow quad dynamics: softens and shrinks as piece lifts
       const shadowScale = Math.max(0.5, 1 - arcY * 0.35);
-      const shadowOpacity = Math.max(0.15, 0.45 - arcY * 0.4);
+      const shadowOpacity = Math.max(0.15, SHADOW_REST_OPACITY - arcY * 0.4);
       anim.target.shadowQuad.position.set(currentX, 0.01, currentZ);
       anim.target.shadowQuad.scale.set(shadowScale, shadowScale, shadowScale);
       (anim.target.shadowQuad.material as THREE.MeshBasicMaterial).opacity = shadowOpacity;
@@ -205,7 +206,7 @@ export class AnimationEngine {
             anim.target.capturedShadowQuad.position.y = capY;
             (anim.target.capturedShadowQuad.material as THREE.MeshBasicMaterial).opacity = Math.max(
               0,
-              0.45 * capScale,
+              SHADOW_REST_OPACITY * capScale,
             );
           }
         }
@@ -229,15 +230,6 @@ export class AnimationEngine {
       if (rawT < 1) {
         remaining.push(anim);
       } else {
-        // Snap to final destination position & reset transformations
-        anim.target.mesh.position.set(anim.endPos.x, 0, anim.endPos.z);
-        anim.target.mesh.rotation.set(0, 0, 0);
-        anim.target.mesh.scale.set(1, 1, 1);
-
-        anim.target.shadowQuad.position.set(anim.endPos.x, 0.01, anim.endPos.z);
-        anim.target.shadowQuad.scale.set(1, 1, 1);
-        (anim.target.shadowQuad.material as THREE.MeshBasicMaterial).opacity = 0.45;
-
         // Apply impact recoil & crisp landing thud shake
         if (!anim.hasLanded) {
           anim.hasLanded = true;
@@ -247,24 +239,7 @@ export class AnimationEngine {
           }
         }
 
-        if (
-          anim.target.isCastle &&
-          anim.target.rookMesh &&
-          anim.target.rookShadowQuad &&
-          anim.rookEndPos
-        ) {
-          anim.target.rookMesh.position.set(anim.rookEndPos.x, 0, anim.rookEndPos.z);
-          anim.target.rookMesh.rotation.set(0, 0, 0);
-          anim.target.rookShadowQuad.position.set(anim.rookEndPos.x, 0.01, anim.rookEndPos.z);
-        }
-
-        if (anim.target.impactRing) {
-          anim.target.impactRing.visible = false;
-        }
-
-        if (anim.onComplete) {
-          anim.onComplete();
-        }
+        this.settle(anim);
       }
     }
 
@@ -273,37 +248,73 @@ export class AnimationEngine {
     return true;
   }
 
+  /**
+   * Puts every mesh this animation touched into its finished state and reports
+   * completion. Cancelling runs the same path as finishing, because a move that
+   * is interrupted has still happened — the position already contains it.
+   *
+   * Leaving the captured mesh out of this was how a piece vanished: cancelling
+   * mid-capture left it shrunk to nothing under the board and never told the
+   * caller to discard it.
+   */
+  private settle(anim: ActiveAnim) {
+    anim.target.mesh.position.set(anim.endPos.x, 0, anim.endPos.z);
+    anim.target.mesh.rotation.set(0, 0, 0);
+    anim.target.mesh.scale.set(1, 1, 1);
+
+    anim.target.shadowQuad.position.set(anim.endPos.x, 0.01, anim.endPos.z);
+    anim.target.shadowQuad.scale.set(1, 1, 1);
+    (anim.target.shadowQuad.material as THREE.MeshBasicMaterial).opacity =
+      SHADOW_REST_OPACITY;
+
+    if (anim.target.capturedMesh) {
+      // Hidden rather than restored. The mesh is off the board either way, and
+      // onComplete is what actually removes it.
+      anim.target.capturedMesh.visible = false;
+      if (anim.target.capturedShadowQuad) {
+        anim.target.capturedShadowQuad.visible = false;
+      }
+    }
+
+    if (
+      anim.target.rookMesh &&
+      anim.target.rookShadowQuad &&
+      anim.rookEndPos
+    ) {
+      anim.target.rookMesh.position.set(anim.rookEndPos.x, 0, anim.rookEndPos.z);
+      anim.target.rookMesh.rotation.set(0, 0, 0);
+      anim.target.rookMesh.scale.set(1, 1, 1);
+      anim.target.rookShadowQuad.position.set(
+        anim.rookEndPos.x,
+        0.01,
+        anim.rookEndPos.z,
+      );
+      anim.target.rookShadowQuad.scale.set(1, 1, 1);
+      (
+        anim.target.rookShadowQuad.material as THREE.MeshBasicMaterial
+      ).opacity = SHADOW_REST_OPACITY;
+    }
+
+    if (anim.target.impactRing) {
+      anim.target.impactRing.visible = false;
+    }
+
+    if (anim.onComplete) {
+      anim.onComplete();
+    }
+  }
+
   /** Pure read of the transform produced by the last {@link update}. */
   getBoardTransform() {
     return this.physicsEngine.getTransform();
   }
 
   cancelAll() {
-    for (const anim of this.activeAnims) {
-      anim.target.mesh.position.set(anim.endPos.x, 0, anim.endPos.z);
-      anim.target.mesh.rotation.set(0, 0, 0);
-      anim.target.mesh.scale.set(1, 1, 1);
-
-      anim.target.shadowQuad.position.set(anim.endPos.x, 0.01, anim.endPos.z);
-      anim.target.shadowQuad.scale.set(1, 1, 1);
-      (anim.target.shadowQuad.material as THREE.MeshBasicMaterial).opacity = 0.45;
-
-      if (
-        anim.target.isCastle &&
-        anim.target.rookMesh &&
-        anim.target.rookShadowQuad &&
-        anim.rookEndPos
-      ) {
-        anim.target.rookMesh.position.set(anim.rookEndPos.x, 0, anim.rookEndPos.z);
-        anim.target.rookMesh.rotation.set(0, 0, 0);
-        anim.target.rookShadowQuad.position.set(anim.rookEndPos.x, 0.01, anim.rookEndPos.z);
-      }
-
-      if (anim.target.impactRing) {
-        anim.target.impactRing.visible = false;
-      }
-    }
+    const cancelled = this.activeAnims;
     this.activeAnims = [];
+    for (const anim of cancelled) {
+      this.settle(anim);
+    }
     this.debrisManager.clear();
     this.physicsEngine.resetTilt();
   }
