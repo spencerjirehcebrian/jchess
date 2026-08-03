@@ -5,11 +5,11 @@ test.describe("Game Controls E2E", () => {
     await page.goto("/");
   });
 
-  test("executes action controls: Take back, Flip, New game", async ({
+  test("executes action controls: Take back, Flip board, New game", async ({
     page,
   }) => {
     // Click Flip button
-    const flipButton = page.getByRole("button", { name: /^Flip$/i });
+    const flipButton = page.getByRole("button", { name: /^Flip board$/i });
     await expect(flipButton).toBeVisible();
     await flipButton.click();
 
@@ -21,10 +21,10 @@ test.describe("Game Controls E2E", () => {
     // Verify game reset to initial status
     await expect(page.locator("main").locator("text=Your move")).toBeVisible();
 
-    // Click Take back button
+    // Take back is disabled on a fresh game: there is no human ply to undo.
     const takebackButton = page.getByRole("button", { name: /^Take back$/i });
     await expect(takebackButton).toBeVisible();
-    await takebackButton.click();
+    await expect(takebackButton).toBeDisabled();
   });
 
   test("opens and closes settings modal panel", async ({ page }) => {
@@ -52,12 +52,12 @@ test.describe("Game Controls E2E", () => {
     const wrapper = page.locator('canvas[aria-label="Chess board view"]').locator("..");
     await expect(wrapper).toHaveCSS("max-width", "100%");
 
-    const decBtn = page.getByRole("button", { name: "Make board smaller" });
+    const decBtn = page.getByRole("button", { name: "Make the board smaller" });
     await expect(decBtn).toBeVisible();
     await decBtn.click();
     await expect(wrapper).toHaveCSS("max-width", "90%");
 
-    const incBtn = page.getByRole("button", { name: "Make board larger" });
+    const incBtn = page.getByRole("button", { name: "Make the board larger" });
     await incBtn.click();
     await expect(wrapper).toHaveCSS("max-width", "100%");
   });

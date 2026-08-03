@@ -13,6 +13,11 @@ export class BoardPhysicsEngine {
   private recoilVelPitch = 0;
   private recoilVelRoll = 0;
 
+  // Result of the most recent step, so readers do not have to re-integrate.
+  private lastPositionOffset = new THREE.Vector3(0, 0, 0);
+  private lastRotationOffset = new THREE.Euler(0, 0, 0, "XYZ");
+  private lastIsActive = false;
+
   triggerShake(intensity: number, durationMs: number, now = performance.now()) {
     this.shakeIntensity = intensity;
     this.shakeDurationMs = durationMs;
@@ -38,6 +43,28 @@ export class BoardPhysicsEngine {
     this.tiltRoll = 0;
   }
 
+  /**
+   * The transform produced by the last {@link update}. Pure — call this to read
+   * the current offsets instead of stepping the simulation again.
+   */
+  getTransform(): {
+    positionOffset: THREE.Vector3;
+    rotationOffset: THREE.Euler;
+    isActive: boolean;
+  } {
+    return {
+      positionOffset: this.lastPositionOffset,
+      rotationOffset: this.lastRotationOffset,
+      isActive: this.lastIsActive,
+    };
+  }
+
+  /** Pure activity query; does not advance the spring or reroll shake noise. */
+  isActive(): boolean {
+    return this.lastIsActive;
+  }
+
+  /** Advances the simulation by `dtMs` and returns the resulting transform. */
   update(
     now = performance.now(),
     dtMs = 16.67,
@@ -97,6 +124,10 @@ export class BoardPhysicsEngine {
     rotOffset.z += this.tiltRoll + this.recoilRoll;
 
     const isActive = isShaking || hasRecoil || Math.abs(this.tiltPitch) > 0.001 || Math.abs(this.tiltRoll) > 0.001;
+
+    this.lastPositionOffset = posOffset;
+    this.lastRotationOffset = rotOffset;
+    this.lastIsActive = isActive;
 
     return {
       positionOffset: posOffset,

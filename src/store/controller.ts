@@ -1,8 +1,9 @@
 import { Store } from "./index";
 import { Move, Color, AppError, GameState } from "../core/types";
-import { Engine } from "../engine/types";
+import { Engine, isSearchCancelled } from "../engine/types";
 import {
   positionAfter,
+  positionFromFen,
   isLegal,
   toSan,
   outcome,
@@ -10,6 +11,7 @@ import {
   fromUci,
   toFen,
 } from "../core/rules";
+import { generatePremoves, hypotheticalPosition } from "../core/premove";
 import { getDifficulty } from "../core/difficulty";
 import { audioEngine } from "../audio";
 import { getConfig } from "../config";
@@ -29,6 +31,17 @@ export class GameController {
   }
   private engine: Engine | null = null;
 
+  /**
+   * Bumped whenever the game changes underneath an in-flight search (new game,
+   * takeback, history browsing, or a newer search starting). A search whose
+   * epoch is stale discards its result instead of applying it to a position it
+   * was never computed for.
+   */
+  private searchEpoch = 0;
+
+  /** Notified with the squares of a premove queue that failed to drain. */
+  onPremoveFailed: ((squares: number[]) => void) | null = null;
+
   constructor(store: Store, engine?: Engine) {
     this.store = store;
     if (engine) {
@@ -40,11 +53,28 @@ export class GameController {
     this.engine = engine;
   }
 
+  /** Invalidates any in-flight search and cancels the engine's current one. */
+  private cancelEngineSearch() {
+    this.searchEpoch++;
+    this.engine?.stop();
+  }
+
+  /** Fire-and-forget entry point; triggerEngineSearch never rejects. */
+  private startEngineSearch(): void {
+    void this.triggerEngineSearch().catch((err) => {
+      console.error("Engine search pipeline error:", err);
+    });
+  }
+
   startNewGame(options?: {
     humanColor?: Color;
     difficulty?: number;
     initialFen?: string;
   }) {
+    // Before any setState, so a reply already in flight is discarded rather
+    // than appended to the freshly reset board.
+    this.cancelEngineSearch();
+
     const config = getConfig();
     const humanColor = options?.humanColor ?? "white";
     const difficulty = options?.difficulty ?? this.state.difficulty ?? config.defaultDifficulty;
@@ -68,7 +98,7 @@ export class GameController {
     }));
 
     if (humanColor === "black") {
-      this.triggerEngineSearch();
+      this.startEngineSearch();
     }
   }
 
@@ -83,17 +113,35 @@ export class GameController {
       state.status.kind === "engine-thinking" ||
       state.status.kind === "engine-delaying"
     ) {
-      // Add to premove queue if within maxPremoves limit
+      // A full queue replaces the tail rather than rejecting: users correcting
+      // the end of a chain expect replacement (docs/08-input.md).
       const config = getConfig();
       const maxPremoves = state.maxPremoves ?? config.maxPremoves;
-      if (state.premoves.length < maxPremoves) {
-        audioEngine.playSound("premove");
-        this.store.setState((prev) => ({
-          premoves: [...prev.premoves, move],
-        }));
-        return true;
-      }
-      return false;
+      if (maxPremoves < 1) return false;
+      const basePremoves = state.premoves.slice(0, maxPremoves - 1);
+
+      // Each premove is validated against the hypothetical board produced by
+      // applying the ones ahead of it, with opponent pieces left in place.
+      const livePos = positionAfter(
+        state.initialFen,
+        state.history.map((h) => h.move),
+      );
+      const hypothetical = hypotheticalPosition(livePos, basePremoves);
+      const piece = hypothetical.board.get(move.from);
+      if (!piece || piece.color !== state.humanColor) return false;
+
+      const candidates = generatePremoves(hypothetical, move.from);
+      const matches = candidates.some(
+        (m) => m.to === move.to && m.promotion === move.promotion,
+      );
+      if (!matches) return false;
+
+      audioEngine.playSound("premove");
+      this.store.setState(() => ({
+        premoves: [...basePremoves, move],
+        selectedSquare: null,
+      }));
+      return true;
     }
 
     if (state.status.kind !== "human-turn") {
@@ -160,41 +208,49 @@ export class GameController {
       selectedSquare: null,
     }));
 
-    this.triggerEngineSearch();
+    this.startEngineSearch();
     return true;
   }
 
   private async triggerEngineSearch() {
-    if (!this.engine) return;
+    const engine = this.engine;
+    if (!engine) return;
 
-    const state = this.state;
-    const level = getDifficulty(state.difficulty);
-    const currentMoves = state.history.map((h) => toUci(h.move));
-
-    if (level.uciOptions) {
-      await this.engine.setOptions(level.uciOptions);
-    }
-
-    const startTime = performance.now();
+    // Starting a search supersedes any earlier one still awaiting a reply.
+    const epoch = ++this.searchEpoch;
+    const isCurrent = () => this.searchEpoch === epoch;
 
     try {
-      const searchResult = await this.engine.search(
+      const level = getDifficulty(this.state.difficulty);
+
+      if (level.uciOptions) {
+        // Inside the try: a setOptions rejection must surface as an error
+        // status, not an unhandled rejection that strands the UI on "Thinking".
+        await engine.setOptions(level.uciOptions);
+        if (!isCurrent()) return;
+      }
+
+      // Re-read after every await; the pre-await snapshot may describe a game
+      // that no longer exists.
+      let state = this.state;
+      if (state.status.kind !== "engine-thinking") return;
+
+      const startTime = performance.now();
+      const searchResult = await engine.search(
         state.initialFen,
-        currentMoves,
+        state.history.map((h) => toUci(h.move)),
         level.budget,
       );
+      if (!isCurrent()) return;
 
-      const elapsed = performance.now() - startTime;
-      const [minThink, maxThink] = level.thinkTimeFloorMs;
-      const targetThink =
-        minThink + Math.floor(Math.random() * (maxThink - minThink + 1));
-      const delayMs = level.id === 8 ? 0 : Math.max(0, targetThink - elapsed);
+      state = this.state;
+      if (state.status.kind !== "engine-thinking") return;
 
-      const parsedMove = fromUci(searchResult.move);
       const currentPos = positionAfter(
         state.initialFen,
         state.history.map((h) => h.move),
       );
+      const parsedMove = fromUci(searchResult.move, currentPos);
 
       if (!parsedMove || !isLegal(currentPos, parsedMove)) {
         this.store.setState(() => ({
@@ -209,6 +265,12 @@ export class GameController {
         return;
       }
 
+      const elapsed = performance.now() - startTime;
+      const [minThink, maxThink] = level.thinkTimeFloorMs;
+      const targetThink =
+        minThink + Math.floor(Math.random() * (maxThink - minThink + 1));
+      const delayMs = level.id === 8 ? 0 : Math.max(0, targetThink - elapsed);
+
       if (delayMs > 0) {
         this.store.setState(() => ({
           status: {
@@ -218,13 +280,15 @@ export class GameController {
           },
         }));
         await new Promise((r) => setTimeout(r, delayMs));
-        if (this.state.status.kind !== "engine-delaying") {
-          return;
-        }
+        if (!isCurrent()) return;
+        if (this.state.status.kind !== "engine-delaying") return;
       }
 
       this.applyEngineMove(parsedMove);
     } catch (err: unknown) {
+      // A cancelled search is not a failure — the caller asked for it.
+      if (isSearchCancelled(err)) return;
+      if (!isCurrent()) return;
       if (
         this.state.status.kind !== "engine-thinking" &&
         this.state.status.kind !== "engine-delaying"
@@ -243,10 +307,35 @@ export class GameController {
 
   private applyEngineMove(move: Move) {
     const state = this.state;
+    if (
+      state.status.kind !== "engine-thinking" &&
+      state.status.kind !== "engine-delaying"
+    ) {
+      return;
+    }
+
     const currentPos = positionAfter(
       state.initialFen,
       state.history.map((h) => h.move),
     );
+
+    // Last-line guard: this runs after an await, so re-validate against the
+    // position the move is actually about to be applied to. Without it,
+    // chessops silently no-ops on an empty `from` square while still flipping
+    // the turn, desynchronising the board from the move list.
+    if (!isLegal(currentPos, move)) {
+      this.store.setState(() => ({
+        status: {
+          kind: "error",
+          error: {
+            code: "ILLEGAL_ENGINE_MOVE",
+            message: `Engine move is no longer legal: ${toUci(move)}`,
+          },
+        },
+      }));
+      return;
+    }
+
     const sanStr = toSan(currentPos, move);
     const posAfter = positionAfter(state.initialFen, [
       ...state.history.map((h) => h.move),
@@ -354,7 +443,7 @@ export class GameController {
           premoves: tailPremoves,
         }));
 
-        this.triggerEngineSearch();
+        this.startEngineSearch();
         return;
       } else {
         // Head premove illegal: clear entire queue
@@ -364,6 +453,9 @@ export class GameController {
           status: { kind: "human-turn" },
           premoves: [],
         }));
+        if (headPremove) {
+          this.onPremoveFailed?.([headPremove.from, headPremove.to]);
+        }
         return;
       }
     }
@@ -375,21 +467,41 @@ export class GameController {
     }));
   }
 
-  takeback() {
-    if (this.engine) {
-      this.engine.stop();
-    }
-
+  /**
+   * The history length to truncate to, or null when nothing can be taken back.
+   *
+   * The result must have the parity that puts the *human* on move. Removing a
+   * fixed two plies is wrong whenever the last ply is the human's unanswered
+   * move (the engine-thinking case), which leaves the engine to move while the
+   * status claims otherwise and freezes the board.
+   */
+  private takebackTarget(): number | null {
     const state = this.state;
-    if (state.history.length === 0) return;
+    const plies = state.history.length;
+    if (plies === 0) return null;
+    if (state.status.kind === "setup") return null;
 
-    // Remove 2 plies if human vs engine, or 1 if only 1 ply exists
-    const pliesToRemove = state.history.length >= 2 ? 2 : 1;
-    const newHistory = state.history.slice(
-      0,
-      state.history.length - pliesToRemove,
-    );
+    const startTurn = positionFromFen(state.initialFen).turn;
+    const humanParity = startTurn === state.humanColor ? 0 : 1;
 
+    let target = plies - 1;
+    if (target % 2 !== humanParity) target -= 1;
+    return target < 0 ? null : target;
+  }
+
+  canTakeback(): boolean {
+    return this.takebackTarget() !== null;
+  }
+
+  takeback() {
+    // Compute the target before cancelling: a no-op takeback must not kill a
+    // legitimate in-flight search and strand the game in engine-thinking.
+    const target = this.takebackTarget();
+    if (target === null) return;
+
+    this.cancelEngineSearch();
+
+    const newHistory = this.state.history.slice(0, target);
     this.store.setState(() => ({
       history: newHistory,
       cursor: newHistory.length,
@@ -402,10 +514,31 @@ export class GameController {
   setCursor(index: number) {
     const state = this.state;
     const clampedIndex = Math.max(0, Math.min(state.history.length, index));
+    if (clampedIndex === state.cursor) return;
+
+    const wasLive = state.cursor === state.history.length;
+    const nowLive = clampedIndex === state.history.length;
+    const engineBusy =
+      state.status.kind === "engine-thinking" ||
+      state.status.kind === "engine-delaying";
+
     this.store.setState(() => ({
       cursor: clampedIndex,
       premoves: [],
     }));
+
+    if (!engineBusy) return;
+
+    if (wasLive && !nowLive) {
+      // Browsing away from the live position: discard the in-flight reply.
+      this.cancelEngineSearch();
+    } else if (!wasLive && nowLive) {
+      // Back to live with a search owed: restart it, or the game is stranded.
+      this.store.setState(() => ({
+        status: { kind: "engine-thinking", startedAt: Date.now() },
+      }));
+      this.startEngineSearch();
+    }
   }
 
   clearPremoves() {

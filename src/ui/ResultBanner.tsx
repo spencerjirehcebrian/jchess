@@ -16,20 +16,22 @@ export function ResultBanner({ result, controller }: ResultBannerProps) {
 
   return (
     <div
+      className="vx-panel"
+      role="status"
       style={{
-        background: "var(--surface-raised)",
-        border: "1px solid var(--accent)",
-        borderRadius: "var(--radius)",
         padding: "var(--sp-4)",
         textAlign: "center",
-        marginTop: "var(--sp-3)",
+        boxShadow:
+          "inset 0 2px 0 0 var(--accent), inset -2px 0 0 0 var(--voxel-side), inset 0 -2px 0 0 var(--voxel-under)",
       }}
     >
       <h2
         style={{
           fontFamily: "var(--font-display)",
           fontSize: "var(--size-xl)",
-          letterSpacing: "2px",
+          fontWeight: 700,
+          fontStretch: "120%",
+          letterSpacing: "0.16em",
           textTransform: "uppercase",
           color: "var(--accent-bright)",
           marginBottom: "var(--sp-1)",
@@ -47,15 +49,10 @@ export function ResultBanner({ result, controller }: ResultBannerProps) {
         by {result.reason}
       </p>
       <button
+        className="vx-button"
+        data-variant="primary"
         onClick={() => controller?.startNewGame()}
-        style={{
-          padding: "var(--sp-2) var(--sp-6)",
-          background: "var(--accent)",
-          color: "var(--bg)",
-          fontWeight: "bold",
-          borderRadius: "var(--radius)",
-          cursor: "pointer",
-        }}
+        style={{ width: "100%" }}
       >
         New game
       </button>

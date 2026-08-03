@@ -273,8 +273,9 @@ export class AnimationEngine {
     return true;
   }
 
-  getBoardTransform(now = performance.now()) {
-    return this.physicsEngine.update(now);
+  /** Pure read of the transform produced by the last {@link update}. */
+  getBoardTransform() {
+    return this.physicsEngine.getTransform();
   }
 
   cancelAll() {
@@ -308,9 +309,6 @@ export class AnimationEngine {
   }
 
   isAnimating(): boolean {
-    return (
-      this.activeAnims.length > 0 ||
-      this.physicsEngine.update().isActive
-    );
+    return this.activeAnims.length > 0 || this.physicsEngine.isActive();
   }
 }

@@ -20,6 +20,35 @@ export interface UpdatePositionOptions {
   retainedIds?: Set<string> | undefined;
 }
 
+/** Radial alpha ramp, opaque at the piece's footprint and gone by the edge. */
+function createContactShadowTexture(): THREE.CanvasTexture | null {
+  if (typeof document === "undefined") return null;
+  const size = 64;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+
+  const gradient = ctx.createRadialGradient(
+    size / 2,
+    size / 2,
+    0,
+    size / 2,
+    size / 2,
+    size / 2,
+  );
+  gradient.addColorStop(0, "rgba(255,255,255,1)");
+  gradient.addColorStop(0.45, "rgba(255,255,255,0.85)");
+  gradient.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, size, size);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  return texture;
+}
+
 export class PieceManager {
   readonly piecesGroup = new THREE.Group();
   readonly shadowQuadsGroup = new THREE.Group();
@@ -28,21 +57,25 @@ export class PieceManager {
   private geometryCache = new Map<string, THREE.BufferGeometry>();
   private shadowMaterial: THREE.MeshBasicMaterial;
   private shadowGeo: THREE.PlaneGeometry;
+  private shadowTexture: THREE.CanvasTexture | null;
   private sharedMaterial: THREE.MeshLambertMaterial;
 
   constructor(theme: Theme) {
     this.piecesGroup.name = "piecesGroup";
     this.shadowQuadsGroup.name = "shadowQuadsGroup";
 
-    // Soft contact shadow geometry & material
-    this.shadowGeo = new THREE.PlaneGeometry(0.85, 0.85);
+    // Contact shadow: a radial falloff, not a hard square. A flat quad reads as
+    // a box painted under the piece, which is exactly what it looked like.
+    this.shadowGeo = new THREE.PlaneGeometry(0.98, 0.98);
     this.shadowGeo.rotateX(-Math.PI / 2);
 
+    this.shadowTexture = createContactShadowTexture();
     this.shadowMaterial = new THREE.MeshBasicMaterial({
       color: 0x000000,
       transparent: true,
-      opacity: 0.45,
+      opacity: 0.38,
       depthWrite: false,
+      ...(this.shadowTexture ? { map: this.shadowTexture } : {}),
     });
 
     this.sharedMaterial = new THREE.MeshLambertMaterial({ vertexColors: true });
@@ -69,16 +102,8 @@ export class PieceManager {
   private precacheGeometries(theme: Theme) {
     const roles: Role[] = ["pawn", "knight", "bishop", "rook", "queen", "king"];
     for (const role of roles) {
-      const whiteMesh = meshPiece(
-        PIECE_DEFINITIONS[role],
-        theme.white,
-        "white",
-      );
-      const blackMesh = meshPiece(
-        PIECE_DEFINITIONS[role],
-        theme.black,
-        "black",
-      );
+      const whiteMesh = meshPiece(PIECE_DEFINITIONS[role], theme.white);
+      const blackMesh = meshPiece(PIECE_DEFINITIONS[role], theme.black);
       this.geometryCache.set(`white-${role}`, whiteMesh.geometry);
       this.geometryCache.set(`black-${role}`, blackMesh.geometry);
     }
@@ -137,7 +162,10 @@ export class PieceManager {
       }
 
       const worldPos = squareToWorld(sq, boardFlipped);
-      const scale = role === "pawn" ? 0.85 : 1;
+      // Every piece is authored at final size; the pawn no longer needs to be
+      // shrunk to read as the smallest, and scaling it also shrank the base
+      // that is meant to be identical across the set.
+      const scale = 1;
 
       if (matchedPiece) {
         usedIds.add(matchedPiece.id);
@@ -215,6 +243,7 @@ export class PieceManager {
 
   dispose() {
     this.shadowGeo.dispose();
+    this.shadowTexture?.dispose();
     this.shadowMaterial.dispose();
     this.sharedMaterial.dispose();
     for (const geo of this.geometryCache.values()) {

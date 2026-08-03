@@ -7,7 +7,7 @@ test.describe('Notation Input and Move Execution E2E', () => {
     // Wait for engine setup to finish and human turn to begin
     await expect(page.getByText('Your move')).toBeVisible();
 
-    const input = page.locator('input[aria-label="Enter move in SAN notation"]');
+    const input = page.locator('input[aria-label="Enter move in algebraic notation"]');
     await input.fill('e4');
     await input.press('Enter');
 
@@ -25,12 +25,12 @@ test.describe('Notation Input and Move Execution E2E', () => {
     // Wait for human turn
     await expect(page.getByText('Your move')).toBeVisible();
 
-    const input = page.locator('input[aria-label="Enter move in SAN notation"]');
+    const input = page.locator('input[aria-label="Enter move in algebraic notation"]');
     await input.fill('e9');
     await input.press('Enter');
 
     // Invalid move should leave input text unchanged
     await expect(input).toHaveValue('e9');
-    await expect(page.getByText('No moves played yet')).toBeVisible();
+    await expect(page.getByText('Play a move to begin')).toBeVisible();
   });
 });

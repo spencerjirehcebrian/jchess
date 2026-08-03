@@ -10,7 +10,7 @@ export const initialGameState: GameState = {
   initialFen: START_FEN,
   humanColor: "white",
   difficulty: 2,
-  theme: "oxide",
+  theme: "lacquer",
   maxPremoves: 3,
   boardSize: "full",
   history: [],

@@ -4,7 +4,22 @@
 
 The board is a physical object rendered in a dark room. Everything around it is instrumentation: quiet, precise, and technical. The DOM chrome must never compete with the scene for attention.
 
-The reference point is a piece of measurement equipment rather than a chess website — monospaced numerics, tight rules, restrained colour, no gradients, no shadows on DOM elements, no rounded-corner card stacks. The one place colour and motion are spent is the board itself.
+**One material system, two renderers.** The mesher bakes a fixed multiplier into
+each cube face — top 1.00, X sides 0.82, Z sides 0.72, bottom 0.55. The DOM
+reuses those same four numbers, so a button and a pawn are lit by one imaginary
+sun. A panel is a voxel seen head-on: its front is a Z face, its top edge
+catches the light, its right edge is an X face, its bottom edge is in shadow.
+Corners step rather than curve, matching the two-voxel taper on every piece
+base. Radius is zero; there are no blurred shadows anywhere.
+
+`applyThemeToCss()` derives the `--voxel-*` set from the active theme, so the
+chrome re-lights itself when the board does.
+
+**The UI's icons are the assets.** `renderPieceSprite()` reads the same voxel
+grids the renderer meshes and draws each piece's front elevation as a pixel
+sprite. The captured tray, the promotion picker and any future piece icon use
+those. Drawing a second set of illustrations would mean maintaining two versions
+of six shapes, and they would drift.
 
 **The signature element is the notation field.** It sits directly beneath the board, always focused, showing live candidate matches as the user types. It is the thing that makes this app feel different from every other chess UI, so it gets the strongest typographic treatment and the most careful interaction polish.
 
@@ -12,62 +27,58 @@ The reference point is a piece of measurement equipment rather than a chess webs
 
 `src/styles/tokens.css`. Every value in the app derives from these; no literal colours or sizes at usage sites.
 
+See `src/styles/tokens.css`. Colour defaults are the Lacquer theme and every
+one of them is overwritten at runtime by `applyThemeToCss()`; the literals exist
+so the first paint matches the scene instead of flashing a grey shell.
+
 ```css
 :root {
-  /* Surface — matches the 3D background so the canvas has no visible seam */
-  --bg:            #1A1D21;
-  --surface:       #23272C;
-  --surface-raised:#2C3138;
-  --border:        #383E46;
-  --border-strong: #4A525C;
+  /* Surface — warm lacquer ramp */
+  --bg:            #100C0A;
+  --surface:       #1A1512;
+  --surface-raised:#241D18;
+  --border:        #33291F;
+  --border-strong: #4A3B2A;
 
-  /* Text */
-  --text:          #E4E7EA;
-  --text-dim:      #9AA3AC;
-  --text-faint:    #656D76;
+  /* Text — the lightest value is the white pieces' own boxwood */
+  --text:          #EDE0C8;
+  --text-dim:      #B5A489;
+  --text-faint:    #93836C;
 
-  /* Accent — sage, pulled from the white pieces' detail colour */
-  --accent:        #8FA89B;
-  --accent-bright: #A8C4B4;
-  --accent-dim:    #5E7268;
+  /* Accent — maki-e gold, the black pieces' detail voxel */
+  --accent:        #C9A227;
+  --accent-bright: #E8C558;
+  --accent-dim:    #8A6B2E;
 
-  /* Premove — brass, pulled from the black pieces' detail colour */
-  --premove:       #B08D57;
-  --premove-dim:   #7A6139;
+  /* Premove — vermilion, the white pieces' detail voxel */
+  --premove:       #D1462F;
+  --premove-dim:   #8E2E1F;
 
-  /* Status */
-  --warning:       #C87F4A;
-  --error:         #C25B54;
-  --success:       #7A9E6B;
+  /* Extrusion set, derived from the mesher's face shading */
+  --voxel-face:  ...;   /* material x 0.72 — the panel front  */
+  --voxel-top:   ...;   /* material x 1.00 — the lit top edge */
+  --voxel-side:  ...;   /* material x 0.82 — the right edge   */
+  --voxel-under: ...;   /* material x 0.55 — the bottom edge  */
 
   /* Type */
-  --font-display: 'Space Grotesk', system-ui, sans-serif;
-  --font-body:    'Inter', system-ui, sans-serif;
-  --font-mono:    'JetBrains Mono', ui-monospace, monospace;
+  --font-display: 'Archivo', system-ui, sans-serif;
+  --font-body:    'IBM Plex Sans', system-ui, sans-serif;
+  --font-mono:    'Departure Mono', ui-monospace, monospace;
 
-  --size-xs:  0.6875rem;   /* 11px — labels, eyebrows */
-  --size-sm:  0.8125rem;   /* 13px — move list, secondary */
-  --size-md:  0.9375rem;   /* 15px — body */
-  --size-lg:  1.25rem;     /* 20px — notation field */
-  --size-xl:  1.75rem;     /* 28px — clocks, result */
-
-  /* Space — 4px base */
-  --sp-1: 0.25rem;  --sp-2: 0.5rem;   --sp-3: 0.75rem;
-  --sp-4: 1rem;     --sp-6: 1.5rem;   --sp-8: 2rem;
-
-  --radius: 2px;           /* nearly square; the app is instrument-like */
-  --dur-fast: 120ms;
-  --dur-base: 180ms;
+  --vx: 4px;               /* one UI voxel; every gap is a whole number of them */
+  --radius: 0;             /* voxels do not have corners */
 }
 ```
 
 **Typography roles:**
 
-- `--font-display` — Space Grotesk. Section labels and the result banner only. Used sparingly, uppercase, letter-spaced.
-- `--font-body` — Inter. All prose, buttons, settings.
-- `--font-mono` — JetBrains Mono. The notation field, move list, clocks, evaluation, coordinates. Anything a chess player reads as a symbol rather than a word.
+- `--font-display` — Archivo, variable weight and width. Section labels, the brand, the result banner. Used sparingly: heavy, expanded, uppercase, widely letter-spaced, so a label behaves like the gold inlay on the board frame — thin and rare.
+- `--font-body` — IBM Plex Sans, variable. All prose, buttons, settings. Its squared terminals sit closer to the voxel grid than a humanist grotesque.
+- `--font-mono` — Departure Mono. The notation field, move list, clocks, evaluation, coordinates. It is drawn on a pixel grid, which is the same grammar as the pieces — the type and the art are built the same way.
 
-Self-host all three as woff2 subsets. Cross-origin isolation blocks third-party font CDNs, so Google Fonts is not an option — this is not a preference, it is a hard constraint of the COEP header.
+All three are self-hosted latin-subset woff2 in `public/fonts` (152KB total).
+Cross-origin isolation blocks third-party font CDNs, so Google Fonts is not an
+option — this is not a preference, it is a hard constraint of the COEP header.
 
 ## Layout
 
@@ -135,7 +146,7 @@ The signature element. Treat it accordingly.
 └──────────────────────────────────────────────────┘
 ```
 
-- Caret is a solid block, not a line. Blinks at 530ms.
+- Caret is a solid block, not a line. Blinks at 530ms. It is drawn by the app, not the browser: the native caret is hidden and the buffer is painted into an overlay, because the field also renders the ghost completion inline on the same text run.
 - The prefix already matched renders in `--text`; the remainder of each candidate renders in `--text-faint`, so the user sees the completion inline.
 - Candidate row shows up to 8, then `+N more`.
 - Exact match: left chevron turns `--accent-bright` and a subtle border glow appears.
@@ -198,7 +209,7 @@ Specific strings:
 
 Non-negotiable, verified before any milestone is considered done:
 
-- Visible focus ring on every interactive element: 2px `--accent-bright`, 2px offset. Never `outline: none` without a replacement.
+- Visible focus ring on every interactive element: 2px `--accent-bright`. `clip-path` crops an outline, so anything wearing the stepped-corner notch draws its focus ring as a 2px **inset** box-shadow instead. Never `outline: none` without a replacement.
 - Contrast ≥ 4.5:1 for body text, ≥ 3:1 for large text and UI borders.
 - `prefers-reduced-motion` respected throughout, including DOM transitions.
 - ARIA live region announcing every move, check, and result.

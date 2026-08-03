@@ -16,12 +16,15 @@ test.describe('App Initialization E2E', () => {
     const canvas = page.locator('canvas[aria-label="Chess board view"]');
     await expect(canvas).toBeVisible();
 
-    // Verify notation input box exists with placeholder
-    const input = page.locator('input[aria-label="Enter move in SAN notation"]');
+    // Verify notation input box exists with its hint. The hint is painted in
+    // an overlay rather than set as a native placeholder, because the field
+    // also renders a block caret and an inline ghost completion over the same
+    // text run.
+    const input = page.locator('input[aria-label="Enter move in algebraic notation"]');
     await expect(input).toBeVisible();
-    await expect(input).toHaveAttribute('placeholder', 'e4, Nf3...');
+    await expect(page.getByText('e4, Nf3', { exact: true })).toBeVisible();
 
     // Verify move list is present
-    await expect(page.getByText('No moves played yet')).toBeVisible();
+    await expect(page.getByText('Play a move to begin')).toBeVisible();
   });
 });

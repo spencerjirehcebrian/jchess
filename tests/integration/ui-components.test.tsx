@@ -11,6 +11,9 @@ import { NotationInput } from '../../src/ui/NotationInput'
 import { MoveList } from '../../src/ui/MoveList'
 import { BoardSizeControls } from '../../src/ui/BoardSizeControls'
 import { App } from '../../src/ui/App'
+import { PromotionPicker } from '../../src/ui/PromotionPicker'
+import { selectPointerTarget } from '../../src/ui/BoardCanvas'
+import { positionFromFen, legalMovesFrom } from '../../src/core/rules'
 
 describe('UI Component Integration Tests', () => {
   beforeEach(() => {
@@ -27,7 +30,7 @@ describe('UI Component Integration Tests', () => {
     const controller = new GameController(useGameStore as any)
     render(<DifficultyPicker controller={controller} />)
 
-    const select = screen.getByLabelText('Engine Level') as HTMLSelectElement
+    const select = screen.getByLabelText('Engine level') as HTMLSelectElement
     expect(select).toBeTruthy()
     fireEvent.change(select, { target: { value: '1' } })
 
@@ -38,9 +41,70 @@ describe('UI Component Integration Tests', () => {
     const controller = new GameController(useGameStore as any)
     render(<GameControls controller={controller} />)
 
-    const flipBtn = screen.getByText('Flip')
+    const flipBtn = screen.getByText('Flip board')
     fireEvent.click(flipBtn)
     expect(useGameStore.getState().boardFlipped).toBe(true)
+  })
+
+  it('disables Take back until there is a human ply to undo', () => {
+    const controller = new GameController(useGameStore as any)
+    useGameStore.setState(() => ({ status: { kind: 'human-turn' }, history: [] }))
+
+    const { rerender } = render(<GameControls controller={controller} />)
+    const takebackBtn = screen.getByText('Take back').closest('button') as HTMLButtonElement
+    expect(takebackBtn.disabled).toBe(true)
+
+    act(() => {
+      useGameStore.setState(() => ({
+        history: [
+          { move: { from: 12, to: 28 }, san: 'e4', fenAfter: '...', isCheck: false, isMate: false }
+        ],
+        cursor: 1,
+        status: { kind: 'engine-thinking', startedAt: Date.now() }
+      }))
+    })
+    rerender(<GameControls controller={controller} />)
+    expect((screen.getByText('Take back').closest('button') as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('asks which piece to promote instead of silently auto-queening', () => {
+    // legalMovesFrom emits queen first, so taking the first candidate would
+    // always queen. A pawn push to the last rank must open the picker instead.
+    const pos = positionFromFen('7k/4P3/8/8/8/8/8/4K3 w - - 0 1')
+    const e7 = 52
+    const e8 = 60
+    const candidates = legalMovesFrom(pos, e7)
+
+    expect(selectPointerTarget(candidates, e8)).toEqual({ kind: 'promotion' })
+    // A non-promotion destination still commits straight away.
+    const kingMoves = legalMovesFrom(pos, 4)
+    expect(selectPointerTarget(kingMoves, 3)).toEqual({
+      kind: 'move',
+      move: { from: 4, to: 3 }
+    })
+    expect(selectPointerTarget(candidates, 0)).toEqual({ kind: 'none' })
+  })
+
+  it('commits the chosen promotion piece from the picker', () => {
+    const chosen: string[] = []
+    render(
+      <PromotionPicker
+        color="white"
+        anchor={{ x: 0, y: 0 }}
+        onSelect={(role) => chosen.push(role)}
+        onCancel={() => chosen.push('cancel')}
+      />
+    )
+
+    expect(screen.getByLabelText('Choose promotion piece')).toBeTruthy()
+    fireEvent.click(screen.getByLabelText('Promote to knight'))
+    expect(chosen).toEqual(['knight'])
+
+    fireEvent.keyDown(window, { key: 'r' })
+    expect(chosen).toEqual(['knight', 'rook'])
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(chosen).toEqual(['knight', 'rook', 'cancel'])
   })
 
   it('renders ResultBanner when game is over', () => {
@@ -75,7 +139,7 @@ describe('UI Component Integration Tests', () => {
     useGameStore.setState(() => ({ status: { kind: 'human-turn' } }))
     render(<NotationInput controller={controller} />)
 
-    const input = screen.getByLabelText('Enter move in SAN notation') as HTMLInputElement
+    const input = screen.getByLabelText('Enter move in algebraic notation') as HTMLInputElement
     fireEvent.change(input, { target: { value: 'e4' } })
     expect(input.value).toBe('e4')
 
@@ -106,15 +170,19 @@ describe('UI Component Integration Tests', () => {
     render(<BoardSizeControls controller={controller} />)
 
     expect(screen.getByText('Size')).toBeTruthy()
-    const decBtn = screen.getByLabelText('Make board smaller')
+
+    // The segmented group and maximise toggle were replaced by a plain
+    // stepper, so size now moves one rung at a time in either direction.
+    const decBtn = screen.getByLabelText('Make the board smaller')
+    const incBtn = screen.getByLabelText('Make the board larger')
+
     fireEvent.click(decBtn)
     expect(useGameStore.getState().boardSize).toBe('large')
 
-    const maxBtn = screen.getByLabelText('Maximize board size')
-    fireEvent.click(maxBtn)
-    expect(useGameStore.getState().boardSize).toBe('full')
-
     fireEvent.click(decBtn)
+    expect(useGameStore.getState().boardSize).toBe('normal')
+
+    fireEvent.click(incBtn)
     expect(useGameStore.getState().boardSize).toBe('large')
   })
 

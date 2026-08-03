@@ -117,6 +117,47 @@ export function premoveDestinations(pos: Position, from: Square): Square[] {
   return destinations;
 }
 
+/**
+ * The board a queued premove should be validated against: your own premoves
+ * applied, opponent pieces left where they are. This is deliberately not
+ * `pos.play()` — the intermediate boards are not legal chess positions (the
+ * turn never passes to the opponent), so each premove is applied as a raw
+ * board mutation instead.
+ */
+export function hypotheticalPosition(
+  pos: Position,
+  premoves: Move[],
+): Position {
+  if (premoves.length === 0) return pos;
+
+  const next = pos.clone();
+  for (const move of premoves) {
+    const piece = next.board.take(move.from);
+    if (!piece) continue;
+
+    next.board.take(move.to);
+    next.board.set(
+      move.to,
+      move.promotion ? { ...piece, role: move.promotion } : piece,
+    );
+
+    // Castling is encoded as the king's destination square; move the rook too.
+    if (piece.role === "king" && Math.abs(squareFile(move.to) - squareFile(move.from)) > 1) {
+      const rank = squareRank(move.from);
+      const isKingside = squareFile(move.to) > squareFile(move.from);
+      const rookFrom = rank * 8 + (isKingside ? 7 : 0);
+      const rookTo = rank * 8 + (isKingside ? 5 : 3);
+      const rook = next.board.take(rookFrom);
+      if (rook) {
+        next.board.take(rookTo);
+        next.board.set(rookTo, rook);
+      }
+    }
+  }
+
+  return next;
+}
+
 export function generatePremoves(pos: Position, from: Square): Move[] {
   const piece = pos.board.get(from);
   if (!piece) return [];

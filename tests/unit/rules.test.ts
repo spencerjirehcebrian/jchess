@@ -60,6 +60,37 @@ describe("rules module", () => {
     expect(e1a1).toEqual({ from: 4, to: 2, promotion: undefined });
   });
 
+  it("remaps e1h1 to the king destination only when a king is on e1", () => {
+    const withKing = positionFromFen(FIXTURE_FENS.CASTLE_ALL_RIGHTS);
+    expect(fromUci("e1h1", withKing)).toEqual({
+      from: 4,
+      to: 6,
+      promotion: undefined,
+    });
+
+    // Rook on e1, king elsewhere: e1h1 is Rh1 and must not become Rg1.
+    const withRook = positionFromFen("k7/8/8/8/8/6K1/8/4R3 w - - 0 1");
+    expect(fromUci("e1h1", withRook)).toEqual({
+      from: 4,
+      to: 7,
+      promotion: undefined,
+    });
+    expect(fromUci("e1a1", withRook)).toEqual({
+      from: 4,
+      to: 0,
+      promotion: undefined,
+    });
+  });
+
+  it("remaps e8h8 for a black king only", () => {
+    const withRook = positionFromFen("4r3/8/8/8/8/8/6k1/K7 b - - 0 1");
+    expect(fromUci("e8h8", withRook)).toEqual({
+      from: 60,
+      to: 63,
+      promotion: undefined,
+    });
+  });
+
   it("FEN round-trip for all 22 fixtures", () => {
     for (const [_, fenStr] of Object.entries(FIXTURE_FENS)) {
       const pos = positionFromFen(fenStr);
