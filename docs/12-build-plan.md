@@ -162,7 +162,7 @@ Local execution is verified via Vite dev server (`npm run dev`) and static previ
 **Goal:** games survive reloads; loose ends closed.
 
 - `persistence/db.ts` — IndexedDB via `idb`, debounced writes, 50-game retention.
-- Resume prompt on boot.
+- Silent resume of the last unfinished game on boot, clocks included.
 - PGN export: download and clipboard.
 - Optional clocks.
 - Graceful degradation when IndexedDB is unavailable.
@@ -172,7 +172,7 @@ Local execution is verified via Vite dev server (`npm run dev`) and static previ
 
 **Done when:**
 - E2E scenario 7 passes.
-- Private browsing mode runs without errors and without a resume affordance.
+- Private browsing mode runs without errors and simply opens on the setup panel every time.
 - Killing and restoring the WebGL context preserves the position.
 - Adjacent difficulty rungs measure 250–350 Elo apart.
 

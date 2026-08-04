@@ -14,6 +14,7 @@ describe("keycap icons", () => {
       "newgame",
       "resign",
       "settings",
+      "start",
       "takeback",
     ]);
   });

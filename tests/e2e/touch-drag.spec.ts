@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { startGame } from "./helpers";
 
 /**
  * Drag-to-move was only ever verified with synthetic mouse events. This is the
@@ -17,7 +18,7 @@ const E4 = 28;
 test.describe("Touch drag", () => {
   test("a finger can drag a pawn from e2 to e4", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByText("Your move")).toBeVisible();
+    await startGame(page);
 
     const canvas = page.locator('canvas[aria-label="Chess board view"]');
     await expect(canvas).toBeVisible();

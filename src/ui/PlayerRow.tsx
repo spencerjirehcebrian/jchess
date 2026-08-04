@@ -173,9 +173,13 @@ export function PlayerRow({ side }: PlayerRowProps) {
   let status = "";
   let statusColor = "var(--text-dim)";
 
+  const isSetup = state.status.kind === "setup";
+
   if (side === "engine") {
-    if (state.status.kind === "setup") status = "Preparing";
+    if (isSetup) status = "Ready";
     else if (isEngineSearching) status = "Thinking";
+  } else if (isSetup) {
+    status = "Choose your side";
   } else if (state.status.kind === "human-turn") {
     if (state.premoves.length > 0) {
       status = `${state.premoves.length} premove${state.premoves.length > 1 ? "s" : ""} queued`;
@@ -193,7 +197,11 @@ export function PlayerRow({ side }: PlayerRowProps) {
   const detail =
     side === "engine"
       ? `level ${state.difficulty} · ${level?.label ?? ""}`
-      : `playing ${color}`;
+      : // A colour not yet drawn is not a colour being played. Random says so
+        // until the game starts and the coin has actually landed.
+        isSetup && state.colorChoice === "random"
+        ? "side undecided"
+        : `playing ${color}`;
 
   const lead = advantage[color];
 

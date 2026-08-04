@@ -1,5 +1,6 @@
 import { openDB, IDBPDatabase } from "idb";
 import { Color, GameState } from "../core/types";
+import { remainingFor } from "../core/clock";
 import { serializePgn } from "../core/pgn";
 
 const DB_NAME = "jchess-db";
@@ -29,6 +30,16 @@ export interface StoredGame {
   humanColor: Color;
   updatedAt: number;
   completed: boolean;
+
+  /*
+   * The clock, which a PGN cannot carry. Both are optional and are read as a
+   * pair: a record written before they existed resumes without a clock, the
+   * way every resumed game used to. No schema version rides on this — the
+   * store has one keyPath and no indexes, so a new field is just a new field.
+   */
+  timeControlId?: string;
+  /** Banked at write time. See the note in `toRecord`. */
+  clockRemaining?: { white: number; black: number };
 }
 
 let dbPromise: Promise<IDBPDatabase | null> | null = null;
@@ -59,7 +70,20 @@ export async function isStorageAvailable(): Promise<boolean> {
   return (await getDB()) !== null;
 }
 
-function toRecord(state: GameState): StoredGame {
+/** Exported for the tests: the whole of what persistence decides is here. */
+export function toRecord(state: GameState): StoredGame {
+  /*
+   * The running side's time is banked here rather than stored as-is, because
+   * `ClockState.runningSince` is a `performance.now()` reading — an offset from
+   * this page load, which means nothing to the next one. Writing the derived
+   * remaining instead makes the record self-contained.
+   *
+   * The write also happens as the tab goes away (see the visibilitychange and
+   * beforeunload listeners below), so what is banked is the time spent up to
+   * the moment the player left. Time away from the page is never charged.
+   */
+  const now = performance.now();
+
   return {
     id: state.id,
     pgn: serializePgn(state),
@@ -67,6 +91,15 @@ function toRecord(state: GameState): StoredGame {
     humanColor: state.humanColor,
     updatedAt: Date.now(),
     completed: state.status.kind === "over",
+    ...(state.timeControlId ? { timeControlId: state.timeControlId } : {}),
+    ...(state.clock
+      ? {
+          clockRemaining: {
+            white: remainingFor(state.clock, "white", now),
+            black: remainingFor(state.clock, "black", now),
+          },
+        }
+      : {}),
   };
 }
 

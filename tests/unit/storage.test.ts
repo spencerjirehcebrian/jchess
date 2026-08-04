@@ -7,6 +7,51 @@ import {
   fromSan,
   positionFromFen,
 } from "../../src/core/rules";
+import { toRecord } from "../../src/storage";
+import { createClock, timeControlById } from "../../src/core/clock";
+
+/*
+ * The clock is the one thing about a game that a PGN cannot carry, so it
+ * travels beside it on the record — and it has to be banked on the way out.
+ * `runningSince` is a `performance.now()` reading, an offset from the page
+ * load that produced it, and the whole point of a stored game is that it
+ * outlives that page.
+ */
+describe("what a stored game carries beyond its moves", () => {
+  it("banks the running side's remaining time rather than storing an offset", () => {
+    const now = performance.now();
+    const state: GameState = {
+      ...initialGameState,
+      timeControlId: "3+2",
+      clock: {
+        ...createClock(timeControlById("3+2"), "white", now)!,
+        // Ten seconds ago, so white is mid-turn with time already spent.
+        runningSince: now - 10_000,
+      },
+    };
+
+    const record = toRecord(state);
+
+    expect(record.timeControlId).toBe("3+2");
+    expect(record.clockRemaining!.white).toBeLessThanOrEqual(170_000);
+    expect(record.clockRemaining!.white).toBeGreaterThan(169_000);
+    // Black's clock was not running, so nothing came off it.
+    expect(record.clockRemaining!.black).toBe(180_000);
+  });
+
+  it("records no clock for an untimed game", () => {
+    const record = toRecord({ ...initialGameState, clock: undefined });
+    expect(record.clockRemaining).toBeUndefined();
+  });
+
+  it("marks a finished game so it is never offered back", () => {
+    const record = toRecord({
+      ...initialGameState,
+      status: { kind: "over", result: { winner: "white", reason: "checkmate" } },
+    });
+    expect(record.completed).toBe(true);
+  });
+});
 
 describe("Storage and PGN serialization unit tests", () => {
   it("serializes starting position to valid PGN", () => {

@@ -5,8 +5,9 @@ import { GameController } from '../../src/store/controller'
 import { PlayerRow } from '../../src/ui/PlayerRow'
 import { DifficultyPicker } from '../../src/ui/DifficultyPicker'
 import { GameControls } from '../../src/ui/GameControls'
-import { ResultBanner } from '../../src/ui/ResultBanner'
+import { ResultOverlay } from '../../src/ui/ResultOverlay'
 import { SettingsPanel } from '../../src/ui/SettingsPanel'
+import { SetupPanel } from '../../src/ui/SetupPanel'
 import { NotationInput } from '../../src/ui/NotationInput'
 import { MoveList } from '../../src/ui/MoveList'
 import { EvalStrip } from '../../src/ui/EvalStrip'
@@ -172,7 +173,12 @@ describe('UI Component Integration Tests', () => {
     })
   })
 
-  it('renders the difficulty ladder and starts a new game on a rung', () => {
+  /*
+   * The ladder used to start a fresh game on every rung press. It only exists
+   * in setup now, where there is no game to restart — the choice is taken by
+   * the Start key.
+   */
+  it('sets the pending level on a rung without starting a game', () => {
     const controller = new GameController(useGameStore as any)
     render(<DifficultyPicker controller={controller} />)
 
@@ -181,6 +187,45 @@ describe('UI Component Integration Tests', () => {
 
     expect(useGameStore.getState().difficulty).toBe(1)
     expect(rung.getAttribute('aria-pressed')).toBe('true')
+    expect(useGameStore.getState().status.kind).toBe('setup')
+    expect(useGameStore.getState().history.length).toBe(0)
+  })
+
+  describe('the setup panel', () => {
+    it('turns the board around when a side is chosen', () => {
+      const controller = new GameController(useGameStore as any)
+      render(<SetupPanel controller={controller} />)
+
+      fireEvent.click(screen.getByRole('button', { name: /^Black$/i }))
+
+      expect(useGameStore.getState().colorChoice).toBe('black')
+      expect(useGameStore.getState().humanColor).toBe('black')
+      expect(useGameStore.getState().boardFlipped).toBe(true)
+    })
+
+    it('keeps the board white-side-down for a side not yet drawn', () => {
+      const controller = new GameController(useGameStore as any)
+      render(<SetupPanel controller={controller} />)
+
+      fireEvent.click(screen.getByRole('button', { name: /^Random$/i }))
+
+      expect(useGameStore.getState().colorChoice).toBe('random')
+      expect(useGameStore.getState().boardFlipped).toBe(false)
+    })
+
+    // Time control moved off the settings dialog: it shapes the next game, so
+    // it belongs with the other choices the Start key consumes.
+    it('chooses the time control for the game about to start', () => {
+      const controller = new GameController(useGameStore as any)
+      render(<SetupPanel controller={controller} />)
+
+      const timeSelect = screen.getByLabelText('Time control') as HTMLSelectElement
+      fireEvent.change(timeSelect, { target: { value: '3+2' } })
+
+      expect(useGameStore.getState().timeControlId).toBe('3+2')
+      // Still nothing running — the clock is created by the game, not the panel.
+      expect(useGameStore.getState().clock).toBeUndefined()
+    })
   })
 
   it('renders GameControls and executes action handlers', () => {
@@ -190,6 +235,60 @@ describe('UI Component Integration Tests', () => {
     const flipBtn = screen.getByText('Flip board')
     fireEvent.click(flipBtn)
     expect(useGameStore.getState().boardFlipped).toBe(true)
+  })
+
+  /*
+   * One key at the bottom of the plate carries the machine between its states,
+   * so the two irreversible ones can never be pressed by mistake for each
+   * other: Resign and New game are never on screen at the same time.
+   */
+  describe('the state key', () => {
+    it('offers Start game, and only Start game, before a game exists', () => {
+      const controller = new GameController(useGameStore as any)
+      render(<GameControls controller={controller} />)
+
+      expect(screen.queryByRole('button', { name: /^Resign$/i })).toBeNull()
+      expect(screen.queryByRole('button', { name: /^New game$/i })).toBeNull()
+      // Nothing to take back or hint about either.
+      expect(screen.queryByText('Take back')).toBeNull()
+
+      fireEvent.click(screen.getByRole('button', { name: /^Start game$/i }))
+      expect(useGameStore.getState().status.kind).toBe('human-turn')
+      controller.dispose()
+    })
+
+    it('offers Resign, and only Resign, while a game is on', () => {
+      const controller = new GameController(useGameStore as any)
+      useGameStore.setState(() => ({ status: { kind: 'human-turn' } }))
+      render(<GameControls controller={controller} />)
+
+      expect(screen.getByRole('button', { name: /^Resign$/i })).toBeTruthy()
+      expect(screen.queryByRole('button', { name: /^New game$/i })).toBeNull()
+      expect(screen.queryByRole('button', { name: /^Start game$/i })).toBeNull()
+    })
+
+    it('puts a finished game away rather than starting another', () => {
+      const controller = new GameController(useGameStore as any)
+      useGameStore.setState(() => ({
+        status: { kind: 'over', result: { winner: 'black', reason: 'resignation' } },
+        difficulty: 5,
+        timeControlId: '3+2',
+        history: [
+          { move: { from: 12, to: 28 }, san: 'e4', fenAfter: '...', isCheck: false, isMate: false }
+        ],
+        cursor: 1
+      }))
+      render(<GameControls controller={controller} />)
+
+      expect(screen.queryByRole('button', { name: /^Resign$/i })).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: /^New game$/i }))
+
+      // Back to the panel, not into another game — and it comes back filled in.
+      expect(useGameStore.getState().status.kind).toBe('setup')
+      expect(useGameStore.getState().history.length).toBe(0)
+      expect(useGameStore.getState().difficulty).toBe(5)
+      expect(useGameStore.getState().timeControlId).toBe('3+2')
+    })
   })
 
   /*
@@ -301,16 +400,82 @@ describe('UI Component Integration Tests', () => {
     expect(chosen).toEqual(['knight', 'rook', 'cancel'])
   })
 
-  it('renders ResultBanner when game is over', () => {
-    const controller = new GameController(useGameStore as any)
-    render(
-      <ResultBanner
-        result={{ winner: 'white', reason: 'checkmate' }}
-        controller={controller}
-      />
-    )
-    expect(screen.getByText('WHITE WINS')).toBeTruthy()
-    expect(screen.getByText('by checkmate')).toBeTruthy()
+  /*
+   * The result is reported from where the player is sitting. "White wins" is a
+   * fact about a board; which of the two people it happened to is the thing
+   * being announced — and it is the only phrasing that survives picking a side
+   * at random.
+   */
+  describe('the result overlay', () => {
+    it('tells the winner they won', () => {
+      render(
+        <ResultOverlay
+          result={{ winner: 'white', reason: 'checkmate' }}
+          humanColor="white"
+          onDismiss={() => {}}
+        />
+      )
+      expect(screen.getByText('YOU WON')).toBeTruthy()
+      expect(screen.getByText('by checkmate')).toBeTruthy()
+    })
+
+    it('tells the loser they lost, on the same result', () => {
+      render(
+        <ResultOverlay
+          result={{ winner: 'white', reason: 'checkmate' }}
+          humanColor="black"
+          onDismiss={() => {}}
+        />
+      )
+      expect(screen.getByText('YOU LOST')).toBeTruthy()
+    })
+
+    it('takes no side on a draw', () => {
+      render(
+        <ResultOverlay
+          result={{ winner: null, reason: 'stalemate' }}
+          humanColor="white"
+          onDismiss={() => {}}
+        />
+      )
+      expect(screen.getByText('DRAW')).toBeTruthy()
+      expect(screen.getByText('by stalemate')).toBeTruthy()
+    })
+
+    it('says how a flag fall ended it in words, not jargon', () => {
+      render(
+        <ResultOverlay
+          result={{ winner: 'black', reason: 'timeout' }}
+          humanColor="white"
+          onDismiss={() => {}}
+        />
+      )
+      expect(screen.getByText('on time')).toBeTruthy()
+    })
+
+    // Every way out leads to the same place: the game, still there, uncovered.
+    it('gets out of the way on the key, on Escape, and on the surround', () => {
+      let dismissed = 0
+      const props = {
+        result: { winner: 'white', reason: 'checkmate' } as const,
+        humanColor: 'white' as const,
+        onDismiss: () => { dismissed += 1 }
+      }
+
+      const { unmount } = render(<ResultOverlay {...props} />)
+      fireEvent.click(screen.getByRole('button', { name: /View game/i }))
+      expect(dismissed).toBe(1)
+      unmount()
+
+      const second = render(<ResultOverlay {...props} />)
+      fireEvent.keyDown(window, { key: 'Escape' })
+      expect(dismissed).toBe(2)
+      second.unmount()
+
+      render(<ResultOverlay {...props} />)
+      fireEvent.click(screen.getByRole('dialog'))
+      expect(dismissed).toBe(3)
+    })
   })
 
   it('renders SettingsPanel and handles theme selection and closing', () => {
@@ -323,14 +488,9 @@ describe('UI Component Integration Tests', () => {
     fireEvent.change(themeSelect, { target: { value: 'forest' } })
     expect(useGameStore.getState().theme).toBe('forest')
 
-    // Choosing a time control records the choice but must not start a clock
-    // in the game already being played.
-    const clockBefore = useGameStore.getState().clock
-    const timeSelect = screen.getByLabelText('Time control') as HTMLSelectElement
-    fireEvent.change(timeSelect, { target: { value: '3+2' } })
-    expect(useGameStore.getState().timeControlId).toBe('3+2')
-    expect(useGameStore.getState().clock).toBe(clockBefore)
-    expect(screen.getByText(/Starts with your next new game/)).toBeTruthy()
+    // Time control is not here any more: it shapes a game rather than the
+    // machine, so it lives on the setup panel with the other pre-game choices.
+    expect(screen.queryByLabelText('Time control')).toBeNull()
 
     const closeBtn = screen.getByText('Close')
     fireEvent.click(closeBtn)
@@ -348,6 +508,49 @@ describe('UI Component Integration Tests', () => {
 
     fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' })
     expect(useGameStore.getState().history.length).toBe(1)
+  })
+
+  /*
+   * The typed first move is the same implicit start as the dragged one — and
+   * it is only white's to make. For a side that has not moved first, or has
+   * not been drawn yet, the slot is switched off rather than left offering
+   * moves that would be refused.
+   */
+  it('starts the game on a typed first move as white', () => {
+    const controller = new GameController(useGameStore as any)
+    render(<NotationInput controller={controller} />)
+
+    const input = screen.getByLabelText('Enter move in algebraic notation') as HTMLInputElement
+    fireEvent.change(input, { target: { value: 'e4' } })
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' })
+
+    expect(useGameStore.getState().history.length).toBe(1)
+    expect(useGameStore.getState().status.kind).toBe('engine-thinking')
+    controller.dispose()
+  })
+
+  it('switches the notation slot off in setup for a side that cannot move', () => {
+    const controller = new GameController(useGameStore as any)
+    controller.setColorChoice('black')
+    render(<NotationInput controller={controller} />)
+
+    const input = screen.getByLabelText('Enter move in algebraic notation') as HTMLInputElement
+    expect(input.disabled).toBe(true)
+    expect(screen.getByText('press start')).toBeTruthy()
+    // And it offers nothing: those moves belong to a board it cannot move on.
+    expect(screen.queryByText('e4')).toBeNull()
+  })
+
+  it('switches the notation slot off once the game is over', () => {
+    const controller = new GameController(useGameStore as any)
+    useGameStore.setState(() => ({
+      status: { kind: 'over', result: { winner: 'black', reason: 'resignation' } }
+    }))
+    render(<NotationInput controller={controller} />)
+
+    const input = screen.getByLabelText('Enter move in algebraic notation') as HTMLInputElement
+    expect(input.disabled).toBe(true)
+    expect(screen.getByText('game over')).toBeTruthy()
   })
 
   it('renders MoveList and navigates history cursor', () => {

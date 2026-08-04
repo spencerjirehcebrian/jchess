@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { startGame } from './helpers';
 
 /**
  * The system line has always told players to "Press ↓ to return to the game".
@@ -8,7 +9,7 @@ test.describe('History navigation by keyboard', () => {
   /** Plays one move and waits for the engine's reply, leaving two plies. */
   async function playOnePair(page: import('@playwright/test').Page) {
     await page.goto('/');
-    await expect(page.getByText('Your move')).toBeVisible();
+    await startGame(page);
 
     const input = page.locator('input[aria-label="Enter move in algebraic notation"]');
     await input.fill('e4');

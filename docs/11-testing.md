@@ -132,7 +132,7 @@ Eight scenarios. Run against the **local Vite dev/preview server** (`npm run pre
 4. **Notation rejection.** Type `Nf9`, press Enter, verify the shake, verify the text remains, verify state is unchanged.
 5. **Premove success.** During engine thinking, premove a move that stays legal. Verify it fires immediately on the engine's reply.
 6. **Premove cancellation.** Premove a move the engine's reply invalidates. Verify the entire queue clears and the error flash appears.
-7. **Persistence.** Play three moves, reload, verify the resume prompt appears and restores the position.
+7. **Persistence.** Play three moves, reload, verify the game is back on the board with no prompt of any kind, and that a timed game comes back with its clocks.
 8. **Reduced motion.** With `prefers-reduced-motion: reduce` emulated, play a move and verify no animation frames are scheduled beyond the first.
 
 Additionally, a **headers assertion test** hitting the local server:

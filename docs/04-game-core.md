@@ -194,14 +194,22 @@ interface StoredGame {
   humanColor: Color
   updatedAt: number
   completed: boolean
+
+  // The clock, which a PGN cannot carry. Read as a pair; a record written
+  // before they existed resumes untimed.
+  timeControlId?: string
+  clockRemaining?: { white: number; black: number }
 }
 ```
 
 - **Write debounced at 500ms** after any move. Never on the critical path of applying a move.
 - **PGN is the storage format**, not the internal state shape. It survives refactors and is directly exportable.
 - Retain the last 50 games; prune oldest-first on write.
-- On boot, if the most recent game is incomplete and less than 7 days old, offer to resume. Do not auto-resume — an unexpected board state on load is disorienting.
-- If IndexedDB is unavailable, run entirely in memory. Disable the resume affordance and note it in settings. Do not show an error dialog.
+- On boot, if the most recent game is incomplete and less than 7 days old, resume it silently. It was asked as a question once; the answer was almost always yes, and the dialog only stood between the player and the game they had left. Anything else — no stored game, a finished one, no storage at all — lands on the setup panel, which is where a player with no game in progress belongs.
+- The boot decision is taken once, after **both** the engine handshake and the storage probe have settled. They used to race, which was survivable only while resuming was a question someone answered.
+- The clock resumes with the game. `ClockState.runningSince` is a `performance.now()` reading and means nothing to the next page load, so the remaining time is banked into the record on the way out (including on `visibilitychange`, so what is stored is the time spent up to the moment the player left). Time away from the page is never charged.
+- A finished game boots to setup rather than to its own analysis: a PGN is rebuilt from notation and carries no evals, so the assessment gauge would have nothing to show.
+- If IndexedDB is unavailable, run entirely in memory. Nothing is offered back and nothing is said about it beyond the note in settings. Do not show an error dialog.
 
 ### PGN
 

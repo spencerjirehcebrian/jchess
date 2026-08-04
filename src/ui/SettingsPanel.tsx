@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useGameStore } from "../store";
 import { GameController } from "../store/controller";
 import { isStorageAvailable } from "../storage";
-import { DEFAULT_TIME_CONTROL_ID, TIME_CONTROLS } from "../core/clock";
 import { THEMES } from "../render/voxel/palette";
 import { BoardSizeControls } from "./BoardSizeControls";
 
@@ -14,8 +13,6 @@ interface SettingsPanelProps {
 export function SettingsPanel({ controller, onClose }: SettingsPanelProps) {
   const currentTheme = useGameStore((s) => s.theme) ?? "lacquer";
   const currentMaxPremoves = useGameStore((s) => s.maxPremoves) ?? 3;
-  const currentTimeControl =
-    useGameStore((s) => s.timeControlId) ?? DEFAULT_TIME_CONTROL_ID;
   const [storageReady, setStorageReady] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -141,44 +138,6 @@ export function SettingsPanel({ controller, onClose }: SettingsPanelProps) {
                 5
               </option>
             </select>
-          </div>
-
-          <div>
-            <label
-              className="vx-label"
-              htmlFor="settings-time-control"
-              style={{ display: "block", marginBottom: "var(--sp-2)" }}
-            >
-              Time control
-            </label>
-            <select
-              className="vx-select"
-              id="settings-time-control"
-              value={currentTimeControl}
-              onChange={(e) => controller?.setTimeControl(e.target.value)}
-            >
-              {TIME_CONTROLS.map((tc) => (
-                <option key={tc.id} value={tc.id} style={optionStyle}>
-                  {tc.label}
-                  {tc.id === DEFAULT_TIME_CONTROL_ID ? " (default)" : ""}
-                </option>
-              ))}
-            </select>
-            {/*
-              Said plainly rather than by disabling the control mid-game.
-              Rewriting a running clock would either hand back time already
-              spent or take away time someone was counting on.
-            */}
-            <p
-              style={{
-                marginTop: "var(--sp-2)",
-                fontSize: "var(--data-xs)",
-                lineHeight: "var(--lh-data-xs)",
-                color: "var(--text-faint)",
-              }}
-            >
-              Starts with your next new game.
-            </p>
           </div>
 
           <div>

@@ -25,7 +25,6 @@ export function DifficultyPicker({ controller }: DifficultyPickerProps) {
   return (
     <div
       style={{
-        padding: "var(--sp-3)",
         display: "flex",
         flexDirection: "column",
         gap: "var(--sp-2)",
@@ -71,7 +70,7 @@ export function DifficultyPicker({ controller }: DifficultyPickerProps) {
               disabled={disabled}
               onClick={() => {
                 if (controller && !disabled) {
-                  controller.startNewGame({ difficulty: lvl.id });
+                  controller.setDifficulty(lvl.id);
                 }
               }}
             >

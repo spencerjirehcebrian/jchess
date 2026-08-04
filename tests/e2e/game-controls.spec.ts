@@ -1,30 +1,57 @@
 import { test, expect } from "@playwright/test";
+import { startGame } from "./helpers";
 
 test.describe("Game Controls E2E", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
   });
 
-  test("executes action controls: Take back, Flip board, New game", async ({
-    page,
-  }) => {
+  test("executes action controls: Take back, Flip board", async ({ page }) => {
+    await startGame(page);
+
     // Click Flip button
     const flipButton = page.getByRole("button", { name: /^Flip board$/i });
     await expect(flipButton).toBeVisible();
     await flipButton.click();
 
-    // Click New Game button
-    const newGameButton = page.getByRole("button", { name: /^New game$/i });
-    await expect(newGameButton).toBeVisible();
-    await newGameButton.click();
-
-    // Verify game reset to initial status
-    await expect(page.locator("main").locator("text=Your move")).toBeVisible();
-
     // Take back is disabled on a fresh game: there is no human ply to undo.
     const takebackButton = page.getByRole("button", { name: /^Take back$/i });
     await expect(takebackButton).toBeVisible();
     await expect(takebackButton).toBeDisabled();
+  });
+
+  /*
+   * The whole loop, once round: choose, play, concede, read the result, put it
+   * away, and find the panel again with the choices still on it. The two
+   * irreversible keys are never on the plate together, which is the point of
+   * there being only one.
+   */
+  test("carries the machine from setup through a game and back", async ({
+    page,
+  }) => {
+    await page.getByRole("group", { name: "Engine level" }).getByLabel(/^Level 4,/).click();
+    await startGame(page);
+
+    // Resigning takes two presses; the first only arms the key.
+    await page.getByRole("button", { name: /^Resign$/i }).click();
+    await page.getByRole("button", { name: /^Resign\?$/i }).click();
+
+    // The result, said from where the player is sitting.
+    await expect(page.getByRole("dialog", { name: "Game result" })).toBeVisible();
+    await expect(page.getByText("YOU LOST")).toBeVisible();
+    await expect(page.getByText("by resignation")).toBeVisible();
+
+    // Dismissing uncovers the game rather than replacing it: the transcript is
+    // still there to be walked through.
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: "Game result" })).toHaveCount(0);
+
+    await expect(page.getByRole("button", { name: /^Resign$/i })).toHaveCount(0);
+    await page.getByRole("button", { name: /^New game$/i }).click();
+
+    // Back on the panel, with the level it was left set to.
+    await expect(page.getByRole("button", { name: /^Start game$/i })).toBeVisible();
+    await expect(page.getByText("level 4 ·")).toBeVisible();
   });
 
   test("opens and closes settings modal panel", async ({ page }) => {

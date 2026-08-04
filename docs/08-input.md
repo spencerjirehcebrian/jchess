@@ -138,8 +138,16 @@ Active when the notation field is empty or unfocused.
 takes focus on mount and holds it for most of a game, so refusing every arrow
 aimed at a text input would mean refusing them nearly always. Arrows move the
 caret while there is something to move it through, and browse the game when the
-buffer is empty. A modal — settings, resume, promotion — owns the keyboard
-outright while it is open; they are all detected by `role="dialog"`.
+buffer is empty. A modal — settings, promotion, the result plate — owns the
+keyboard outright while it is open; they are all detected by `role="dialog"`.
+The result plate is one deliberately: browsing the transcript behind something
+covering the board is not useful, and dismissing it unmounts the plate, so
+browsing works from the moment there is anything to look at.
+
+In setup the notation field is live only for white, whose typed first move
+starts the game the way a dragged one does. For a side that does not move first
+— black, or a random draw not yet made — the field is disabled rather than left
+offering moves that would be refused.
 
 Do not bind single letters that collide with SAN piece letters when the field could plausibly be receiving input. `f` is safe because a bare `f` is a file letter that requires a following digit; `n` and `b` are not safe and are therefore not bound.
 

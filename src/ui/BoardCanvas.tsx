@@ -102,15 +102,30 @@ export function BoardCanvas({ controller }: BoardCanvasProps) {
         ? hypotheticalPosition(currentPos, currentState.premoves)
         : currentPos;
 
+      /*
+       * Whether the board answers the pointer at all. In setup the pieces are
+       * a preview, not a game — except for white, whose first move is the
+       * implicit press of the Start key. Black and random wait for Start (the
+       * engine moves first, or the coin has not been flipped), so their board
+       * goes dead here: no grab cursor, no drag, no drop targets, no
+       * click-to-select, all through this one flag.
+       */
+      const boardLive =
+        currentState.status.kind !== "setup" ||
+        currentState.colorChoice === "white";
+
       const isOwnPiece = (sq: Square) => {
+        if (!boardLive) return false;
         const piece = premoveBase.board.get(sq);
         return !!piece && piece.color === movingColor;
       };
 
-      const candidatesFrom = (from: Square): Move[] =>
-        inPremoveMode
+      const candidatesFrom = (from: Square): Move[] => {
+        if (!boardLive) return [];
+        return inPremoveMode
           ? generatePremoves(premoveBase, from)
           : legalMovesFrom(currentPos, from);
+      };
 
       return {
         currentState,

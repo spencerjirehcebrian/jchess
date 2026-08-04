@@ -9,6 +9,7 @@ export const initialGameState: GameState = {
   id: "game-1",
   initialFen: START_FEN,
   humanColor: "white",
+  colorChoice: "white",
   difficulty: 2,
   theme: "lacquer",
   maxPremoves: 3,

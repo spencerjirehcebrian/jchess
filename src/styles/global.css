@@ -586,6 +586,15 @@ input::placeholder {
 }
 
 /*
+ * The setup panel stands in the transcript's slot and takes the same share of
+ * the rail, for the same reason it is declared here rather than inline.
+ */
+.app-setup-panel {
+  flex: 1;
+  min-height: 0;
+}
+
+/*
  * The housing: the whole machine, moulded in one shot of plastic, standing on
  * the dark room. It is a step lighter than the room rather than the same value,
  * so the machine still reads as an object with an edge rather than as the page
@@ -666,6 +675,12 @@ input::placeholder {
   .app-move-list {
     flex: none;
     min-height: 180px;
+  }
+
+  .app-setup-panel {
+    flex: none;
+    min-height: 0;
+    overflow-y: visible;
   }
 }
 

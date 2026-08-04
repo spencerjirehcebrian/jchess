@@ -473,16 +473,44 @@ Specific strings:
 | Move while browsing | `Return to the live position to move.` |
 | Engine failure | `The engine stopped responding. Start a new game to continue.` |
 | Storage unavailable | `Games won't be saved in this browser mode.` |
-| Resume prompt | `You have an unfinished game from Tuesday. Resume it?` |
 | Resign, armed | `Resign?` |
+| Result, player-relative | `YOU WON` / `YOU LOST` / `DRAW`, then `by checkmate`, `on time` |
 
-Resigning is irreversible and shares a plate with the key that starts a new
-game, so it takes two presses. The label changes, which means the accessible
-name changes with it — a player who cannot see the key change is told in words
-that the next press is the one that counts. It does **not** revert on a timer: a
-key that quietly disarms after three seconds is a race against anyone reading
-slowly, or listening. It disarms when another key is used or focus leaves the
-plate.
+Resigning is irreversible, so it takes two presses. The label changes, which
+means the accessible name changes with it — a player who cannot see the key
+change is told in words that the next press is the one that counts. It does
+**not** revert on a timer: a key that quietly disarms after three seconds is a
+race against anyone reading slowly, or listening. It disarms when another key
+is used or focus leaves the plate.
+
+## The three states
+
+The machine shows one of three faces, derived from `status.kind` by `phaseOf`
+so nothing has to keep a second copy of which one is current.
+
+| | Rail's middle band | The state key |
+|---|---|---|
+| **Setup** | Setup panel: level, time control, side | `Start game` |
+| **Playing** | Transcript, with Take back and Hint on the plate | `Resign` |
+| **Finished** | Assessment gauge above the transcript, both browsable | `New game` |
+
+One key at the bottom of the plate carries the machine between them, full
+width, in the same place under the hand whichever word it wears. Resign and New
+game can no longer be pressed by mistake for each other, because they are never
+on screen at once.
+
+Choosing a side turns the board around on the spot — the preview is the
+feedback. `Random` keeps the board white-side-down and the coin is flipped by
+the Start key, not by the picker. Playing white, the board and the notation
+field are live in setup and making a move *is* the start: it begins the game
+and lands the move in one gesture, which is a clearer way of saying "begin"
+than a button that only gets you to the same place.
+
+The result covers the board, not the window, and carries no scrim: the rail
+behind it is already the finished game's analysis, and dimming that to announce
+the result would hide the thing being announced. `New game` returns to the
+setup panel with every choice still on it rather than starting another game —
+the choices are worth seeing before the next one begins.
 
 The armed word is `Resign?` rather than `Confirm resign` because every key has
 to fit the same column as `Flip board`, and the armed state must not be the one

@@ -40,7 +40,8 @@ export type IconName =
   | "hint"
   | "resign"
   | "newgame"
-  | "settings";
+  | "settings"
+  | "start";
 
 export const ICONS: Record<IconName, VoxelGrid> = {
   /* Back the way you came. A plain arrow rather than the curling undo hook,
@@ -114,6 +115,18 @@ export const ICONS: Record<IconName, VoxelGrid> = {
     "##..##..",
     "..##..##",
     "..##..##",
+  ]),
+
+  /* Play. The one triangle every machine with a start button already wears. */
+  start: icon([
+    ".#......",
+    ".###....",
+    ".#####..",
+    ".#######",
+    ".#######",
+    ".#####..",
+    ".###....",
+    ".#......",
   ]),
 
   /* Two sliders. A gear loses its teeth at eight pixels and becomes a blob. */

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useGameStore } from "../store";
 import { GameController } from "../store/controller";
+import { phaseOf } from "../core/types";
 import { positionAfter, legalMoves, toUci } from "../core/rules";
 import { matchPrefix } from "../core/san-parser";
 import { audioEngine } from "../audio";
@@ -20,6 +21,19 @@ export function NotationInput({ controller }: NotationInputProps) {
     state.status.kind === "engine-thinking" ||
     state.status.kind === "engine-delaying";
   const isPremoveMode = isEngineThinking;
+
+  /*
+   * When there is no move to be made, the slot is switched off rather than
+   * left offering moves that would be refused.
+   *
+   * In setup that means every side but white, who moves first and whose typed
+   * move starts the game the same way a dragged one does. Once a game is over
+   * it means always: the transcript is there to be read, not added to.
+   */
+  const phase = phaseOf(state.status);
+  const isInert =
+    phase === "finished" ||
+    (phase === "setup" && state.colorChoice !== "white");
 
   const currentPos = useMemo(
     () =>
@@ -45,10 +59,11 @@ export function NotationInput({ controller }: NotationInputProps) {
   const legals = useMemo(() => legalMoves(matchPos), [matchPos]);
   const notationState = matchPrefix(buffer, legals, matchPos);
 
+  // Focus on mount, and again whenever the field wakes up — a disabled input
+  // cannot hold focus, so after Start-as-black the caret has to be put back.
   useEffect(() => {
-    // Keep focused
-    inputRef.current?.focus();
-  }, []);
+    if (!isInert) inputRef.current?.focus();
+  }, [isInert]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
@@ -87,9 +102,15 @@ export function NotationInput({ controller }: NotationInputProps) {
   // turn-swapped board: chessops disambiguates against the side to move, so two
   // knights that both reached f3 were both offered as "Nf3" — a name that does
   // not identify either of them, and is ambiguous when typed back.
-  const candidateSans = notationState.candidateSans.slice(0, 8);
-  const candidateMoves = notationState.candidates.slice(0, 8);
-  const remainingCount = Math.max(0, notationState.candidates.length - 8);
+  //
+  // A switched-off field offers nothing. The moves it would list belong to
+  // whoever is to move on a board the player cannot move on, which is at best
+  // noise and at worst an invitation.
+  const candidateSans = isInert ? [] : notationState.candidateSans.slice(0, 8);
+  const candidateMoves = isInert ? [] : notationState.candidates.slice(0, 8);
+  const remainingCount = isInert
+    ? 0
+    : Math.max(0, notationState.candidates.length - 8);
 
   const chevronColor = notationState.exactMatch
     ? isPremoveMode
@@ -234,7 +255,13 @@ export function NotationInput({ controller }: NotationInputProps) {
               <span
                 style={{ color: "var(--lcd-dim)", paddingLeft: "1ch" }}
               >
-                {isPremoveMode ? "premove" : "e4, Nf3"}
+                {phase === "finished"
+                  ? "game over"
+                  : isInert
+                    ? "press start"
+                    : isPremoveMode
+                      ? "premove"
+                      : "e4, Nf3"}
               </span>
             )}
           </span>
@@ -249,6 +276,7 @@ export function NotationInput({ controller }: NotationInputProps) {
             onBlur={() => setIsFocused(false)}
             aria-label="Enter move in algebraic notation"
             aria-describedby="notation-candidates"
+            disabled={isInert}
             autoComplete="off"
             autoCorrect="off"
             spellCheck={false}

@@ -1,6 +1,15 @@
 import { Store } from "./index";
 import { useTelemetry } from "./telemetry";
-import { Move, Color, AppError, ClockState, GameState } from "../core/types";
+import {
+  Move,
+  Color,
+  ColorChoice,
+  AppError,
+  ClockState,
+  GameState,
+  START_FEN,
+  phaseOf,
+} from "../core/types";
 import {
   DEFAULT_TIME_CONTROL_ID,
   createClock,
@@ -170,7 +179,7 @@ export class GameController {
     const state = this.state;
     const clock = state.clock;
 
-    if (!clock || state.status.kind === "over" || state.status.kind === "error") {
+    if (!clock || phaseOf(state.status) !== "playing") {
       this.stopFlagWatch();
       return;
     }
@@ -197,12 +206,74 @@ export class GameController {
   }
 
   /**
-   * Applies to the next new game, not this one. Changing the shape of a game
-   * while it is being played would either hand someone time they had already
-   * spent or take away time they were counting on.
+   * The setup panel's contract: the choice is taken when the game starts, not
+   * before. (The old settings dialog allowed this mid-game too, which would
+   * either hand someone time already spent or take away time they were
+   * counting on — the value is only ever read by `startNewGame`.)
    */
   setTimeControl(id: string): void {
     this.store.setState(() => ({ timeControlId: timeControlById(id).id }));
+  }
+
+  /**
+   * A pending choice, not a restart. The ladder used to start a fresh game on
+   * every rung press; now it only exists in setup, where there is no game to
+   * restart.
+   */
+  setDifficulty(difficulty: number): void {
+    if (this.state.status.kind !== "setup") return;
+    this.store.setState(() => ({ difficulty }));
+  }
+
+  /**
+   * Picking a side turns the board around immediately — the preview is the
+   * point. "random" keeps its secret: the board stays white-side-down and the
+   * coin is flipped by `startGame`, not here.
+   */
+  setColorChoice(choice: ColorChoice): void {
+    if (this.state.status.kind !== "setup") return;
+    this.store.setState(() => ({
+      colorChoice: choice,
+      humanColor: choice === "black" ? ("black" as const) : ("white" as const),
+      boardFlipped: choice === "black",
+    }));
+  }
+
+  /** The Start key. Resolves "random" and hands off to `startNewGame`. */
+  startGame(): void {
+    const choice = this.state.colorChoice;
+    const humanColor: Color =
+      choice === "random"
+        ? Math.random() < 0.5
+          ? "white"
+          : "black"
+        : choice;
+    this.startNewGame({ humanColor });
+  }
+
+  /**
+   * Finished → setup. The board is cleared but every choice survives —
+   * difficulty, time control, colour — so the panel comes back pre-filled with
+   * the game just played. The old id stays: nothing is written to storage
+   * while the history is empty, and the finished game's record was already
+   * flushed as completed.
+   */
+  returnToSetup(): void {
+    this.cancelEngineSearch();
+    this.stopFlagWatch();
+    this.lowTimeWarned = false;
+
+    this.store.setState((prev) => ({
+      initialFen: START_FEN,
+      humanColor: prev.colorChoice === "black" ? "black" : "white",
+      boardFlipped: prev.colorChoice === "black",
+      history: [],
+      cursor: 0,
+      status: { kind: "setup" },
+      premoves: [],
+      selectedSquare: null,
+      clock: undefined,
+    }));
   }
 
   /** Releases the flag-fall timer and its listener. */
@@ -248,6 +319,9 @@ export class GameController {
       id: newGameId(),
       initialFen,
       humanColor,
+      // Orientation follows the side being played, whichever path started the
+      // game. (Playing black used to leave the board white-side-down.)
+      boardFlipped: humanColor === "black",
       difficulty,
       timeControlId: control.id,
       clock,
@@ -272,12 +346,19 @@ export class GameController {
    * PGN into history — this decides whose move it is and restarts the engine if
    * the answer is the engine's.
    *
-   * A resumed game comes back without a clock. PGN carries no time, and
-   * handing back a full initial allowance would be a cheat.
+   * The clock comes back too, from the record rather than the PGN: what was
+   * banked when the tab was last left, running again for whoever is on move.
+   * A record written before clocks were stored has none, and resumes untimed.
    */
   resumeGame(
     restored: RestoredGame,
-    meta: { id: string; humanColor: Color; difficulty: number },
+    meta: {
+      id: string;
+      humanColor: Color;
+      difficulty: number;
+      timeControlId?: string | undefined;
+      clockRemaining?: { white: number; black: number } | undefined;
+    },
   ): void {
     this.cancelEngineSearch();
     this.lowTimeWarned = false;
@@ -289,11 +370,27 @@ export class GameController {
     const finished = outcome(posNow, restored.history, restored.initialFen);
     const engineToMove = !finished && posNow.turn !== meta.humanColor;
 
+    const control = timeControlById(meta.timeControlId);
+    const clock: ClockState | undefined =
+      !finished && meta.clockRemaining && control.initialMs > 0
+        ? {
+            initialMs: control.initialMs,
+            incrementMs: control.incrementMs,
+            remaining: { ...meta.clockRemaining },
+            runningSince: performance.now(),
+            runningFor: posNow.turn,
+          }
+        : undefined;
+
     this.store.setState(() => ({
       id: meta.id,
       initialFen: restored.initialFen,
       humanColor: meta.humanColor,
+      boardFlipped: meta.humanColor === "black",
+      // The side that was being played is what the setup panel offers next.
+      colorChoice: meta.humanColor,
       difficulty: meta.difficulty,
+      timeControlId: control.id,
       history: restored.history,
       cursor: restored.history.length,
       status: finished
@@ -303,14 +400,30 @@ export class GameController {
           : { kind: "human-turn" },
       premoves: [],
       selectedSquare: null,
-      clock: undefined,
+      clock,
       startedAt: restored.startedAt,
     }));
 
+    if (clock) this.startFlagWatch();
     if (engineToMove) this.startEngineSearch();
   }
 
   makeMove(move: Move): boolean {
+    /*
+     * The implicit start. In setup as white the board is live, and the first
+     * move is the press of the Start key — the game begins and the move lands
+     * on it in one gesture. Safe because setup always shows the start position
+     * with an empty history, and starting as white fires no engine search, so
+     * the position the move validates against below is the same one it was
+     * made on. Black and random have no first move to make; their board is
+     * inert until Start is pressed.
+     */
+    if (this.state.status.kind === "setup") {
+      if (this.state.colorChoice !== "white") return false;
+      this.startGame();
+    }
+
+    // Read after the setup branch: startGame has just rewritten the state.
     const state = this.state;
     if (state.cursor < state.history.length) {
       // Browsing history: reject move
@@ -790,7 +903,9 @@ export class GameController {
    */
   resign(): void {
     const state = this.state;
-    if (state.status.kind === "over" || state.status.kind === "error") return;
+    // Only a game in progress can be conceded — there is nothing to concede
+    // in setup, and a finished game is already decided.
+    if (phaseOf(state.status) !== "playing") return;
 
     this.cancelEngineSearch();
     this.stopFlagWatch();

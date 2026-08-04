@@ -56,6 +56,31 @@ export type GameStatus =
   | { kind: "over"; result: Result }
   | { kind: "error"; error: AppError };
 
+/**
+ * The side the player asked for, which is not always the side they get:
+ * "random" resolves to a concrete colour only when the game starts.
+ */
+export type ColorChoice = Color | "random";
+
+/**
+ * The three faces the machine shows: choosing a game, playing it, and looking
+ * back at it. Every status kind belongs to exactly one, and an error counts as
+ * finished — the game it broke cannot continue, only be replaced.
+ */
+export type Phase = "setup" | "playing" | "finished";
+
+export function phaseOf(status: GameStatus): Phase {
+  switch (status.kind) {
+    case "setup":
+      return "setup";
+    case "over":
+    case "error":
+      return "finished";
+    default:
+      return "playing";
+  }
+}
+
 export interface ClockState {
   initialMs: number;
   incrementMs: number;
@@ -70,6 +95,8 @@ export interface GameState {
   id: string;
   initialFen: string;
   humanColor: Color;
+  /** What the setup panel asked for; `humanColor` is what it resolved to. */
+  colorChoice: ColorChoice;
   difficulty: number; // 1-8
   theme: string; // "oxide" | "monochrome" | "forest"
   maxPremoves: number;

@@ -1,34 +1,35 @@
-import { useCallback, useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useGameStore } from "../store";
 import { GameController } from "../store/controller";
 import { createStockfishEngine } from "../engine/stockfish";
 import { isSearchCancelled } from "../engine/types";
 import { restoreFromPgn } from "../core/pgn";
-import {
-  StoredGame,
-  deleteGame,
-  loadResumableGame,
-  saveGame,
-} from "../storage";
+import { loadResumableGame, saveGame } from "../storage";
 import { THEMES, applyThemeToCss } from "../render/voxel/palette";
 
 import { BoardCanvas } from "./BoardCanvas";
 import { NotationInput } from "./NotationInput";
 import { MoveList } from "./MoveList";
 import { EvalStrip } from "./EvalStrip";
-import { DifficultyPicker } from "./DifficultyPicker";
+import { SetupPanel } from "./SetupPanel";
 import { GameControls } from "./GameControls";
 import { PlayerRow } from "./PlayerRow";
 import { SystemLine } from "./SystemLine";
-import { ResultBanner } from "./ResultBanner";
+import { ResultOverlay } from "./ResultOverlay";
 import { SettingsPanel } from "./SettingsPanel";
-import { ResumePrompt } from "./ResumePrompt";
 
 export function App() {
   const state = useGameStore();
   const [controller, setController] = useState<GameController | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [resumable, setResumable] = useState<StoredGame | null>(null);
+
+  /*
+   * Which game's result has already been read. Keyed by game rather than held
+   * as a bare boolean, so dismissing one result cannot swallow the next: every
+   * game carries a fresh id, and a resumed game that was already over shows
+   * its result again — which is right, because it has not been shown here.
+   */
+  const [resultSeenFor, setResultSeenFor] = useState<string | null>(null);
 
   useEffect(() => {
     const activeTheme = state.theme ? THEMES[state.theme] : THEMES.lacquer;
@@ -38,26 +39,55 @@ export function App() {
     const ctrl = new GameController(useGameStore as any, engine);
     setController(ctrl);
 
-    engine
-      .init()
-      .then(() => {
-        ctrl.startNewGame();
-      })
-      .catch((err) => {
-        // Unmounting (or StrictMode's double-invoke) disposes the engine
-        // mid-handshake; that is an intentional teardown, not a failure.
-        if (isSearchCancelled(err)) return;
-        console.error("Engine init error:", err);
-      });
+    let disposed = false;
 
-    // Asked once, at boot. A fresh game starts underneath either way, so the
-    // board is never empty while the question is on screen — and if there is
-    // nothing to resume, or no storage at all, nothing appears.
-    void loadResumableGame().then((game) => {
-      if (game && restoreFromPgn(game.pgn)) setResumable(game);
-    });
+    /*
+     * One decision, taken once, after both answers are in.
+     *
+     * The engine handshake and the storage probe used to race: a game was
+     * started the moment the engine was ready while the stored game arrived on
+     * its own schedule. That was survivable while resuming was a question the
+     * player answered, but not now that it happens silently — whichever landed
+     * last would win. Waiting for both settles it by construction.
+     *
+     * An unfinished game is simply put back, without asking. The store already
+     * boots in setup, so the other branches have nothing to do: no stored
+     * game, no storage at all, or an engine that never came up all land on the
+     * setup panel, which is where a player with no game in progress belongs.
+     */
+    void Promise.allSettled([engine.init(), loadResumableGame()]).then(
+      ([initResult, storedResult]) => {
+        // Unmounting — or StrictMode's double-invoke — has already torn this
+        // controller down; whatever it decided is about a machine that is gone.
+        if (disposed) return;
+
+        if (initResult.status === "rejected") {
+          // A disposal mid-handshake is an intentional teardown, not a failure.
+          if (!isSearchCancelled(initResult.reason)) {
+            console.error("Engine init error:", initResult.reason);
+          }
+          return;
+        }
+
+        const game =
+          storedResult.status === "fulfilled" ? storedResult.value : null;
+        if (!game) return;
+
+        const restored = restoreFromPgn(game.pgn);
+        if (!restored) return;
+
+        ctrl.resumeGame(restored, {
+          id: game.id,
+          humanColor: game.humanColor,
+          difficulty: game.difficulty,
+          timeControlId: game.timeControlId,
+          clockRemaining: game.clockRemaining,
+        });
+      },
+    );
 
     return () => {
+      disposed = true;
       ctrl.dispose();
       engine.dispose();
     };
@@ -134,27 +164,6 @@ export function App() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [controller]);
 
-  const resumeStoredGame = useCallback(() => {
-    const game = resumable;
-    setResumable(null);
-    if (!game || !controller) return;
-
-    const restored = restoreFromPgn(game.pgn);
-    if (!restored) return;
-
-    controller.resumeGame(restored, {
-      id: game.id,
-      humanColor: game.humanColor,
-      difficulty: game.difficulty,
-    });
-  }, [resumable, controller]);
-
-  const discardStoredGame = useCallback(() => {
-    const game = resumable;
-    setResumable(null);
-    if (game) void deleteGame(game.id);
-  }, [resumable]);
-
   return (
     /*
       The machine. One moulded object standing in the dark room, rather than a
@@ -203,6 +212,14 @@ export function App() {
             style={{ flex: 1, position: "relative", minHeight: 0 }}
           >
             <BoardCanvas controller={controller} />
+
+            {state.status.kind === "over" && resultSeenFor !== state.id && (
+              <ResultOverlay
+                result={state.status.result}
+                humanColor={state.humanColor}
+                onDismiss={() => setResultSeenFor(state.id)}
+              />
+            )}
           </div>
 
           <NotationInput controller={controller} />
@@ -269,29 +286,29 @@ export function App() {
 
           <PlayerRow side="engine" />
 
-          {/*
-            Above the transcript rather than below it, so the gauge and the
-            column of scores it summarises read as one instrument. Renders
-            nothing at all until the game is over.
-          */}
-          <EvalStrip />
+          {state.status.kind === "setup" ? (
+            /*
+              Before there is a game, the transcript's slot holds the choices:
+              strength, time, colour. The panel and the record never exist at
+              once — starting the game swaps one for the other.
+            */
+            <SetupPanel controller={controller} />
+          ) : (
+            <>
+              {/*
+                Above the transcript rather than below it, so the gauge and the
+                column of scores it summarises read as one instrument. Renders
+                nothing at all until the game is over.
+              */}
+              <EvalStrip />
 
-          <MoveList controller={controller} />
-
-          {state.status.kind === "over" && (
-            <ResultBanner
-              result={state.status.result}
-              controller={controller}
-            />
+              <MoveList controller={controller} />
+            </>
           )}
 
           <SystemLine />
 
           <PlayerRow side="human" />
-
-          <div style={{ borderTop: "1px solid var(--border)" }}>
-            <DifficultyPicker controller={controller} />
-          </div>
 
           <div
             style={{
@@ -314,13 +331,6 @@ export function App() {
         />
       )}
 
-      {resumable && (
-        <ResumePrompt
-          game={resumable}
-          onResume={resumeStoredGame}
-          onDiscard={discardStoredGame}
-        />
-      )}
     </div>
   );
 }

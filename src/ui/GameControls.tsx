@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { GameController } from "../store/controller";
 import { useGameStore } from "../store";
+import { phaseOf } from "../core/types";
 import { IconName } from "../render/voxel/icons";
 import { KeyIcon } from "./KeyIcon";
 
@@ -18,11 +19,14 @@ function Key({
   label,
   onClick,
   disabled,
+  span,
 }: {
   icon: IconName;
   label: string;
   onClick: () => void;
   disabled?: boolean;
+  /** The state key runs the full width of the plate. */
+  span?: boolean;
 }) {
   return (
     <button
@@ -38,6 +42,7 @@ function Key({
         // and a word inside a column the rail can squeeze to 155px, and the
         // tracking is the only part of that budget worth giving back.
         letterSpacing: "1px",
+        ...(span ? { gridColumn: "1 / -1" } : {}),
       }}
     >
       <KeyIcon name={icon} />
@@ -52,15 +57,14 @@ export function GameControls({
 }: GameControlsProps) {
   // Subscribe so the takeback button re-evaluates as the game progresses.
   const state = useGameStore();
+  const phase = phaseOf(state.status);
   const takebackDisabled = !controller || !controller.canTakeback();
-  const isPlaying =
-    state.status.kind !== "over" && state.status.kind !== "error";
 
   /*
-   * Resigning is irreversible and sits next to the key that starts a new game,
-   * so it asks twice. A two-press key rather than a dialog: the machine has no
-   * other modal surface for a decision this small, and a confirmation that
-   * cannot be reached by the keyboard would be worse than none.
+   * Resigning is irreversible, so it asks twice. A two-press key rather than a
+   * dialog: the machine has no other modal surface for a decision this small,
+   * and a confirmation that cannot be reached by the keyboard would be worse
+   * than none.
    *
    * It does not revert on a timer. A key that quietly disarms after three
    * seconds is a race against anyone reading slowly, or listening.
@@ -99,25 +103,29 @@ export function GameControls({
         if (!e.currentTarget.contains(e.relatedTarget as Node)) disarm();
       }}
     >
-      <Key
-        icon="takeback"
-        label="Take back"
-        onClick={() => {
-          disarm();
-          controller?.takeback();
-        }}
-        disabled={takebackDisabled}
-      />
+      {phase === "playing" && (
+        <>
+          <Key
+            icon="takeback"
+            label="Take back"
+            onClick={() => {
+              disarm();
+              controller?.takeback();
+            }}
+            disabled={takebackDisabled}
+          />
 
-      <Key
-        icon="hint"
-        label="Hint"
-        onClick={() => {
-          disarm();
-          void controller?.hint();
-        }}
-        disabled={!controller || state.status.kind !== "human-turn"}
-      />
+          <Key
+            icon="hint"
+            label="Hint"
+            onClick={() => {
+              disarm();
+              void controller?.hint();
+            }}
+            disabled={!controller || state.status.kind !== "human-turn"}
+          />
+        </>
+      )}
 
       <Key
         icon="flip"
@@ -140,42 +148,57 @@ export function GameControls({
       )}
 
       {/*
-        The label changes, and so does the accessible name with it — which is
-        the point. A player who cannot see the key change colour is told in
-        words that the next press is the one that counts.
-
-        A question mark rather than the word "confirm": every key has to fit the
-        same column as "Flip board", and the armed state must not be the widest
-        thing on the plate or it is the one label that cannot be shown.
+        One key, three legends. The bottom of the plate always holds the single
+        control that moves the machine between its states — Start game in
+        setup, Resign while playing, New game once it is over — full width, so
+        it sits in the same place under the hand whichever word it wears.
+        Resign and New game can no longer collide: they never exist at once.
       */}
-      <Key
-        icon="resign"
-        label={confirmingResign ? "Resign?" : "Resign"}
-        onClick={() => {
-          if (!confirmingResign) {
-            setConfirmingResign(true);
-            return;
-          }
-          setConfirmingResign(false);
-          controller?.resign();
-        }}
-        disabled={!controller || !isPlaying}
-      />
+      {phase === "setup" && (
+        <Key
+          icon="start"
+          label="Start game"
+          onClick={() => controller?.startGame()}
+          disabled={!controller}
+          span
+        />
+      )}
 
-      {/*
-        Not the primary. New game discards the game in progress, and dressing
-        the most destructive control as the loudest thing in the rail pointed
-        attention away from the board. Gold now marks only where the game is:
-        the chosen rung on the ladder, and a matched move in the notation field.
-      */}
-      <Key
-        icon="newgame"
-        label="New game"
-        onClick={() => {
-          disarm();
-          controller?.startNewGame();
-        }}
-      />
+      {phase === "playing" && (
+        /*
+          The label changes, and so does the accessible name with it — which is
+          the point. A player who cannot see the key change colour is told in
+          words that the next press is the one that counts.
+        */
+        <Key
+          icon="resign"
+          label={confirmingResign ? "Resign?" : "Resign"}
+          onClick={() => {
+            if (!confirmingResign) {
+              setConfirmingResign(true);
+              return;
+            }
+            setConfirmingResign(false);
+            controller?.resign();
+          }}
+          disabled={!controller}
+          span
+        />
+      )}
+
+      {phase === "finished" && (
+        /*
+          Back to the setup panel, not straight into another game: the choices
+          are shown again, pre-filled, and Start is one press away.
+        */
+        <Key
+          icon="newgame"
+          label="New game"
+          onClick={() => controller?.returnToSetup()}
+          disabled={!controller}
+          span
+        />
+      )}
     </div>
   );
 }

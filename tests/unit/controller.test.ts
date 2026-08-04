@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { initialGameState } from "../../src/store";
 import { GameController } from "../../src/store/controller";
 import { createStockfishEngine } from "../../src/engine/stockfish";
@@ -204,6 +204,211 @@ describe("GameController", () => {
       });
       // The clock is frozen, not left ticking behind the result banner.
       expect(store.clock?.runningFor).toBeNull();
+      controller.dispose();
+    });
+  });
+
+  describe("setup phase", () => {
+    const makeStore = () => {
+      const store = {
+        ...initialGameState,
+        setState: (fn: any) => Object.assign(store, fn(store)),
+      };
+      return store;
+    };
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("orients the board preview when a side is chosen", () => {
+      const store = makeStore();
+      const controller = new GameController(store as any);
+
+      controller.setColorChoice("black");
+      expect(store.colorChoice).toBe("black");
+      expect(store.humanColor).toBe("black");
+      expect(store.boardFlipped).toBe(true);
+
+      // Random keeps its secret: the preview stays white-side-down.
+      controller.setColorChoice("random");
+      expect(store.colorChoice).toBe("random");
+      expect(store.humanColor).toBe("white");
+      expect(store.boardFlipped).toBe(false);
+    });
+
+    it("ignores colour and difficulty changes outside setup", () => {
+      const store = makeStore();
+      const controller = new GameController(store as any);
+      controller.startNewGame();
+
+      controller.setColorChoice("black");
+      controller.setDifficulty(7);
+      expect(store.humanColor).toBe("white");
+      expect(store.difficulty).toBe(initialGameState.difficulty);
+    });
+
+    it("resolves random at start, not before", () => {
+      const store = makeStore();
+      const controller = new GameController(store as any);
+
+      controller.setColorChoice("random");
+      vi.spyOn(Math, "random").mockReturnValue(0.9); // → black
+      controller.startGame();
+
+      expect(store.humanColor).toBe("black");
+      expect(store.boardFlipped).toBe(true);
+      expect(store.colorChoice).toBe("random");
+      expect(store.status.kind).toBe("engine-thinking");
+      controller.dispose();
+    });
+
+    it("starts the game implicitly on white's first move", () => {
+      const store = makeStore();
+      const controller = new GameController(store as any);
+      controller.setTimeControl("3+2");
+
+      expect(store.status.kind).toBe("setup");
+      const ok = controller.makeMove({ from: 12, to: 28 }); // e4
+
+      expect(ok).toBe(true);
+      expect(store.history.length).toBe(1);
+      expect(store.history[0]?.san).toBe("e4");
+      expect(store.status.kind).toBe("engine-thinking");
+      // The game the move started has a running clock, charged to black now.
+      expect(store.clock?.runningFor).toBe("black");
+      controller.dispose();
+    });
+
+    it("keeps the board inert in setup for black and random", () => {
+      const store = makeStore();
+      const controller = new GameController(store as any);
+
+      controller.setColorChoice("random");
+      expect(controller.makeMove({ from: 12, to: 28 })).toBe(false);
+      expect(store.status.kind).toBe("setup");
+      expect(store.history.length).toBe(0);
+    });
+
+    it("treats resign as a no-op in setup", () => {
+      const store = makeStore();
+      const controller = new GameController(store as any);
+
+      controller.resign();
+      expect(store.status.kind).toBe("setup");
+    });
+
+    it("flips the board when starting as black", () => {
+      const store = makeStore();
+      const controller = new GameController(store as any);
+
+      controller.startNewGame({ humanColor: "black" });
+      expect(store.boardFlipped).toBe(true);
+      controller.dispose();
+    });
+
+    it("returns to setup keeping the panel choices", () => {
+      const store = makeStore();
+      const controller = new GameController(store as any);
+
+      controller.setTimeControl("3+2");
+      controller.setColorChoice("black");
+      controller.setDifficulty(4);
+      controller.startGame();
+      controller.resign();
+      expect(store.status.kind).toBe("over");
+
+      controller.returnToSetup();
+      expect(store.status.kind).toBe("setup");
+      expect(store.history.length).toBe(0);
+      expect(store.clock).toBeUndefined();
+      // Every choice survives for the pre-filled panel.
+      expect(store.difficulty).toBe(4);
+      expect(store.timeControlId).toBe("3+2");
+      expect(store.colorChoice).toBe("black");
+      expect(store.boardFlipped).toBe(true);
+      controller.dispose();
+    });
+  });
+
+  /*
+   * A game put back after a reload. The moves come from the PGN; the clock
+   * comes from the record beside it, because a PGN carries no time.
+   */
+  describe("resuming a stored game", () => {
+    const makeStore = () => {
+      const store = {
+        ...initialGameState,
+        setState: (fn: any) => Object.assign(store, fn(store)),
+      };
+      return store;
+    };
+
+    const restored = () => ({
+      initialFen: initialGameState.initialFen,
+      history: [
+        {
+          move: { from: 12, to: 28 },
+          san: "e4",
+          fenAfter:
+            "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1",
+          isCheck: false,
+          isMate: false,
+        },
+      ],
+      startedAt: Date.now(),
+    });
+
+    it("puts the clock back where it was left, running for the side to move", () => {
+      const store = makeStore();
+      const controller = new GameController(store as any);
+
+      controller.resumeGame(restored() as any, {
+        id: "game-stored",
+        humanColor: "white",
+        difficulty: 3,
+        timeControlId: "3+2",
+        clockRemaining: { white: 120_000, black: 90_000 },
+      });
+
+      expect(store.clock?.remaining).toEqual({ white: 120_000, black: 90_000 });
+      // Black is to move after 1. e4, so black's clock is the one running.
+      expect(store.clock?.runningFor).toBe("black");
+      expect(store.clock?.initialMs).toBe(180_000);
+      expect(store.timeControlId).toBe("3+2");
+      expect(store.status.kind).toBe("engine-thinking");
+      controller.dispose();
+    });
+
+    it("resumes untimed when the record predates stored clocks", () => {
+      const store = makeStore();
+      const controller = new GameController(store as any);
+
+      controller.resumeGame(restored() as any, {
+        id: "game-legacy",
+        humanColor: "white",
+        difficulty: 3,
+      });
+
+      expect(store.clock).toBeUndefined();
+      expect(store.history.length).toBe(1);
+      controller.dispose();
+    });
+
+    it("comes back facing the side being played", () => {
+      const store = makeStore();
+      const controller = new GameController(store as any);
+
+      controller.resumeGame(restored() as any, {
+        id: "game-black",
+        humanColor: "black",
+        difficulty: 3,
+      });
+
+      expect(store.boardFlipped).toBe(true);
+      // And the panel, when it next appears, offers the side just played.
+      expect(store.colorChoice).toBe("black");
+      expect(store.status.kind).toBe("human-turn");
       controller.dispose();
     });
   });
