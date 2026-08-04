@@ -124,15 +124,22 @@ The field is focused by default and refocused whenever focus would otherwise lan
 
 Active when the notation field is empty or unfocused.
 
-| Key | Action |
-|---|---|
-| `←` / `→` | Browse history back / forward |
-| `↑` / `↓` | Jump to game start / live position |
-| `f` | Flip board |
-| `Ctrl/Cmd + Z` | Takeback |
-| `Escape` | Clear selection, then clear premoves |
-| `?` | Show shortcut reference |
-| `Q` `R` `B` `N` | Promotion choice (only while the picker is open) |
+| Key | Action | |
+|---|---|---|
+| `←` / `→` | Browse history back / forward | bound |
+| `↑` / `↓` | Jump to game start / live position | bound |
+| `Escape` | Clear selection, then clear premoves | bound |
+| `Q` `R` `B` `N` | Promotion choice (only while the picker is open) | bound |
+| `f` | Flip board | not yet |
+| `Ctrl/Cmd + Z` | Takeback | not yet |
+| `?` | Show shortcut reference | not yet |
+
+"Empty or unfocused" is doing real work in the rule above: the notation field
+takes focus on mount and holds it for most of a game, so refusing every arrow
+aimed at a text input would mean refusing them nearly always. Arrows move the
+caret while there is something to move it through, and browse the game when the
+buffer is empty. A modal — settings, resume, promotion — owns the keyboard
+outright while it is open; they are all detected by `role="dialog"`.
 
 Do not bind single letters that collide with SAN piece letters when the field could plausibly be receiving input. `f` is safe because a bare `f` is a file letter that requires a following digit; `n` and `b` are not safe and are therefore not bound.
 

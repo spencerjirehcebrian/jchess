@@ -342,6 +342,27 @@ export function shadeHex(hex: string, factor: number): string {
   return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
 }
 
+/**
+ * The four materials a keycap legend is printed in.
+ *
+ * Housing inks rather than piece colours: an icon on a key is screen-printed on
+ * the same moulding the deck is, so it is read against pale plastic and has to
+ * come from the family that was solved against pale plastic. Passing a piece
+ * palette instead would put a boxwood-coloured icon on a boxwood-coloured key.
+ *
+ * The renderer multiplies these by the face shading, so every value only gets
+ * darker from here — which means the housing contrast floor the ink family
+ * already clears is the worst case, not the best.
+ */
+export function inkPalette(tokens: ThemeTokens): Palette {
+  return {
+    base: tokens.textDim,
+    accent: tokens.text,
+    shade: tokens.textFaint,
+    detail: tokens.accent,
+  };
+}
+
 export function applyThemeToCss(theme: Theme): void {
   if (typeof document === "undefined") return;
   const root = document.documentElement;

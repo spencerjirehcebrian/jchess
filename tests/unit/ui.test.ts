@@ -4,6 +4,8 @@ import {
   THEMES,
   applyThemeToCss,
   shadeHex,
+  inkPalette,
+  FACE_SHADING,
   LCD_SHADING,
   SEAM_SHADING,
 } from "../../src/render/voxel/palette";
@@ -62,6 +64,31 @@ describe("UI component unit tests", () => {
    * flip is safe to keep making: a theme cannot be added, or an ink nudged for
    * looks, without proving it is still readable.
    */
+  /*
+   * The keycap legends are drawn, not typed, so nothing about them is caught by
+   * the ink assertions below: they go through the sprite renderer, which
+   * multiplies each material by the mesher's face shading before painting it.
+   * A material that clears 4.5:1 as text can only get darker from there — but
+   * "can only get darker" is an argument, and this is the assertion.
+   */
+  it("keeps every keycap icon readable on its own key", () => {
+    for (const [id, theme] of Object.entries(THEMES)) {
+      const ink = inkPalette(theme.cssTokens);
+      // The keycap and the deck are one shot of plastic: the +Y face at 1.00.
+      const keycap = theme.cssTokens.surfaceRaised;
+
+      for (const material of ["base", "accent", "shade", "detail"] as const) {
+        // Both faces the renderer can give a voxel: a lit top and a front.
+        for (const face of [FACE_SHADING.top, FACE_SHADING.sideZ]) {
+          expect(
+            contrast(shadeHex(ink[material], face), keycap),
+            `${id}: icon ${material} at face ${face} on the keycap`,
+          ).toBeGreaterThanOrEqual(3);
+        }
+      }
+    }
+  });
+
   it("keeps every housing ink legible on its own housing", () => {
     for (const [id, theme] of Object.entries(THEMES)) {
       const t = theme.cssTokens;

@@ -333,12 +333,77 @@ Each state is shown on the row it belongs to, not in a bar of its own.
 | State | Where | Display |
 |---|---|---|
 | Loading engine | Stockfish row | `Preparing` |
-| Engine thinking | Stockfish row | `Thinking` plus a four-dot depth indicator filling with search depth |
+| Engine thinking | Stockfish row | `Thinking` plus a four-cell depth indicator and the depth itself (`d12`) |
+| In check | The row that has to answer it | A lit `CHECK` legend plate — `--knockout` on `--accent` |
 | Your turn | Your row | `Your move`, and your row takes the lit surface |
 | Premove queued | Your row | `2 premoves queued` in `--premove` |
 | Browsing history | System line | `Viewing move 12. Press ↓ to return to the game.` in `--warning` |
 | Engine failure | System line | The error's own message in `--error` |
 | Game over | Below the transcript | Result banner: `--font-legend`, uppercase, letter-spaced, with the reason beneath |
+| Game over | Above the transcript | The evaluation strip, and a fourth column of scores inside the transcript |
+
+The depth indicator and the check legend both subscribe at the leaf rather than
+taking a prop, because their parent rows read the whole game store — a prop
+would drag the name, the clock and the trophy rack through every reading.
+
+Nothing animates to report a state. A lamp that blinks is demanding attention;
+these only report, and the word beside each one always says the same thing.
+
+## The instruments
+
+**Depth.** Four cells and a number, fed from the telemetry store (see
+`03-engine.md`). Quantised in the selector so a 10Hz feed repaints two spans
+about four times a search.
+
+**Evaluation.** Recorded during play, shown only once the game is over. Being
+told you are losing before you can see why is discouraging rather than
+instructive against a level-two opponent, and it is the closest thing to an
+assist this app would ship.
+
+The strip is a fixed 178px — fifteen 10px cells with 2px between them — rather
+than a fraction of the rail. The rail is a 340–380px range, and a proportional
+block lands every cell edge on a fraction, which softens the one element in the
+app made entirely of edges. The transcript's score column is 56px for the same
+family of reason: the rail's inner width is even, so taking two even columns out
+of it leaves each `1fr` on a whole pixel.
+
+Mate pins the gauge rather than being scaled as a quantity. One score per row is
+a full column, not a half-empty one, because the engine plays one colour and so
+at most one ply of a pair was ever searched.
+
+## Keycap legends
+
+Control icons are authored as voxel grids in `src/render/voxel/icons.ts`, in the
+same format and the same four materials as the pieces, and rendered by the same
+`voxelSpriteUrl`. One grid language, one renderer, one place the light comes
+from. Grids are written top-down and reversed once on the way in, so nobody has
+to author upside down.
+
+- **8×8 at `pixel: 2` — 16px.** The size at which a pixel icon has been legible
+  since icons existed, and even, so it centres on a whole pixel in a 40px key.
+- **Housing inks, not piece colours** (`inkPalette`). A legend is printed on the
+  same moulding the deck is, so it is read against pale plastic and has to come
+  from the family that was solved against pale plastic.
+- **No halo.** Pieces carry a contrasting outline because the same sprite has to
+  work on a keycap, in a dark tray and over the board. An icon only ever sits on
+  one surface, and a light halo around a dark icon on cream reads as a glow.
+- **No hover state.** A screen-printed legend does not change colour when a
+  finger approaches; the key underneath already lights. Disabled comes free from
+  the button's own opacity.
+- **Beside the word, never instead of it.** The machine being imitated had text
+  on its keys, and the specs identify these buttons by their accessible names —
+  which is exactly what an icon-only control throws away. `alt=""` keeps the
+  picture out of the name.
+
+Legibility beats the better story. The resign key was drawn as a toppled king
+first; a king is only a king because of the cross on its crown, a cross needs
+three voxels across, and on an eight-wide grid that leaves five for the body and
+renders as a smudge. It is a flag.
+
+Keys are laid out `minmax(0, 1fr)`, not `1fr`. A bare `1fr` is `minmax(auto,
+1fr)`, so the longest legend in a column sets that column's width — which made
+the keys two different sizes and reflowed the whole keypad under the pointer the
+moment the resign key changed its word.
 
 ## Copy rules
 
@@ -366,6 +431,19 @@ Specific strings:
 | Engine failure | `The engine stopped responding. Start a new game to continue.` |
 | Storage unavailable | `Games won't be saved in this browser mode.` |
 | Resume prompt | `You have an unfinished game from Tuesday. Resume it?` |
+| Resign, armed | `Resign?` |
+
+Resigning is irreversible and shares a plate with the key that starts a new
+game, so it takes two presses. The label changes, which means the accessible
+name changes with it — a player who cannot see the key change is told in words
+that the next press is the one that counts. It does **not** revert on a timer: a
+key that quietly disarms after three seconds is a race against anyone reading
+slowly, or listening. It disarms when another key is used or focus leaves the
+plate.
+
+The armed word is `Resign?` rather than `Confirm resign` because every key has
+to fit the same column as `Flip board`, and the armed state must not be the one
+label on the plate that cannot be shown.
 
 ## Accessibility floor
 

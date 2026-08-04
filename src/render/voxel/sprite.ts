@@ -1,19 +1,20 @@
 import { Role } from "../../core/types";
-import { PIECE_DEFINITIONS } from "./pieces";
+import { PIECE_DEFINITIONS, VoxelGrid } from "./pieces";
 import { Palette, FACE_SHADING } from "./palette";
 
 /**
- * Renders a piece's front elevation as a pixel sprite.
+ * Renders a voxel grid's front elevation as a pixel sprite.
  *
  * The DOM needs piece icons for the move list, the captured tray and the
- * promotion picker. Drawing a second set of icons would mean maintaining two
- * versions of the same six shapes, and they would drift. Instead the sprite is
- * a straight orthographic read of the voxel grid the renderer meshes: for each
- * column, the frontmost filled voxel, shaded by whether it is a top face or a
- * front face. Change a piece and its icon changes with it.
+ * promotion picker, and control icons for the keyplate. Drawing a second set
+ * would mean maintaining two versions of the same shapes, and they would drift.
+ * Instead the sprite is a straight orthographic read of the grid the renderer
+ * meshes: for each column, the frontmost filled voxel, shaded by whether it is
+ * a top face or a front face. Change a shape and its icon changes with it.
+ *
+ * Keycap icons are authored in the same format for the same reason — one grid
+ * language, one renderer, one place where the light comes from.
  */
-
-const WIDTH = 11;
 
 function shade(hex: string, factor: number): string {
   const n = parseInt(hex.replace("#", ""), 16);
@@ -50,53 +51,79 @@ function isLight(hex: string): boolean {
   return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.5;
 }
 
+/** The widest row anywhere in the grid — the sprite's own width in voxels. */
+function gridWidth(grid: VoxelGrid): number {
+  let width = 0;
+  for (const layer of grid) {
+    for (const row of layer) {
+      if (row.length > width) width = row.length;
+    }
+  }
+  return width;
+}
+
+export interface SpriteOptions {
+  /** Device pixels per voxel. */
+  pixel?: number;
+  /**
+   * A one-voxel contrasting outline, and the margin it needs.
+   *
+   * Pieces need it: the same sprite has to read on a pale keycap, in a dark
+   * tray and over the board, and no single background works for both sets — so
+   * the fix belongs to the sprite rather than to whatever is behind it.
+   *
+   * Keycap icons must not have it. They only ever sit on one surface, and a
+   * light halo around a dark icon on cream plastic reads as a glow.
+   */
+  halo?: boolean;
+}
+
 /**
- * @param pixel Device pixels per voxel.
+ * @param id Identifies the grid for caching; must be unique per shape.
  * @returns A data URL, or null where there is no canvas (tests, SSR).
  */
-export function pieceSpriteUrl(
-  role: Role,
+export function voxelSpriteUrl(
+  id: string,
+  grid: VoxelGrid,
   palette: Palette,
-  pixel = 3,
+  opts: SpriteOptions = {},
 ): string | null {
-  const key = `${role}-${palette.base}-${palette.detail}-${pixel}`;
+  const pixel = opts.pixel ?? 3;
+  const halo = opts.halo ?? true;
+
+  const key = `${id}-${palette.base}-${palette.detail}-${pixel}-${halo}`;
   const cached = cache.get(key);
   if (cached) return cached;
 
   if (typeof document === "undefined") return null;
 
-  const def = PIECE_DEFINITIONS[role];
-  const height = def.grid.length;
+  const height = grid.length;
+  const width = gridWidth(grid);
+  if (width === 0 || height === 0) return null;
+
+  // The outline needs a voxel of margin all round to occupy; without one it
+  // would be clipped away at the edges of the shape it is meant to surround.
+  const margin = halo ? 1 : 0;
 
   const canvas = document.createElement("canvas");
-  // One voxel of margin all round, for the outline to occupy.
-  canvas.width = (WIDTH + 2) * pixel;
-  canvas.height = (height + 2) * pixel;
+  canvas.width = (width + margin * 2) * pixel;
+  canvas.height = (height + margin * 2) * pixel;
   const ctx = canvas.getContext("2d");
   if (!ctx) return null;
 
   const filled = (y: number, z: number, x: number): boolean => {
-    const layer = def.grid[y];
+    const layer = grid[y];
     if (!layer) return false;
     const row = layer[z];
     if (!row) return false;
     return row[x] !== undefined && row[x] !== ".";
   };
 
-  /*
-   * Collect the elevation first, then paint an outline under it.
-   *
-   * The same sprite has to read on a pale keycap, in a dark tray and over the
-   * board. A white piece is 2.4:1 on the moulded deck and a black piece is
-   * 1.5:1 in the slot it sits in, so no single background works for both sets —
-   * the fix belongs to the sprite, not to whatever is behind it. One voxel of
-   * contrasting halo, stamped in the four axis directions, makes the piece
-   * self-contained anywhere. It is drawn in the same hard pixels as the rest.
-   */
+  // Collect the elevation first, so the outline can be painted underneath it.
   const cells: { x: number; y: number; color: string }[] = [];
   for (let y = 0; y < height; y++) {
-    const layer = def.grid[y]!;
-    for (let x = 0; x < WIDTH; x++) {
+    const layer = grid[y]!;
+    for (let x = 0; x < width; x++) {
       // The camera faces -Z, so the first filled voxel along Z is the one seen.
       let char: string | null = null;
       let z = 0;
@@ -115,22 +142,25 @@ export function pieceSpriteUrl(
       // A voxel with nothing above it shows its top face; otherwise its front.
       const lit = !filled(y + 1, z, x);
       cells.push({
-        x: x + 1,
-        y: height - 1 - y + 1,
+        x: x + margin,
+        // Grids are authored bottom-up, the way the renderer stacks them.
+        y: height - 1 - y + margin,
         color: shade(base, lit ? FACE_SHADING.top : FACE_SHADING.sideZ),
       });
     }
   }
 
-  ctx.fillStyle = isLight(palette.base) ? "#000000" : "#FFFFFF";
-  for (const { x, y } of cells) {
-    for (const [dx, dy] of [
-      [1, 0],
-      [-1, 0],
-      [0, 1],
-      [0, -1],
-    ] as const) {
-      ctx.fillRect((x + dx) * pixel, (y + dy) * pixel, pixel, pixel);
+  if (halo) {
+    ctx.fillStyle = isLight(palette.base) ? "#000000" : "#FFFFFF";
+    for (const { x, y } of cells) {
+      for (const [dx, dy] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ] as const) {
+        ctx.fillRect((x + dx) * pixel, (y + dy) * pixel, pixel, pixel);
+      }
     }
   }
 
@@ -142,6 +172,21 @@ export function pieceSpriteUrl(
   const url = canvas.toDataURL();
   cache.set(key, url);
   return url;
+}
+
+/**
+ * @param pixel Device pixels per voxel.
+ * @returns A data URL, or null where there is no canvas (tests, SSR).
+ */
+export function pieceSpriteUrl(
+  role: Role,
+  palette: Palette,
+  pixel = 3,
+): string | null {
+  return voxelSpriteUrl(`piece-${role}`, PIECE_DEFINITIONS[role].grid, palette, {
+    pixel,
+    halo: true,
+  });
 }
 
 /** Drops cached sprites so a theme change re-renders them. */

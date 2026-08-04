@@ -201,7 +201,25 @@ Parse `info` lines and throttle `onProgress` to at most 10Hz. The renderer maps 
 
 Relevant `info` fields: `depth`, `nodes`, `nps`, `score cp <n>`, `score mate <n>`, `pv <moves...>`.
 
-Do not display raw evaluation to the user during play at any difficulty. It is available for a post-game review screen only, which is out of scope for v1 but should not be designed out.
+Two rules the throttle has to keep, both learned by getting them wrong:
+
+- **Never report a line with no depth.** Stockfish opens a search with `info string NNUE evaluation using ...`, which carries none. Reporting it arms the throttle with a reading of zero and swallows every real depth that arrives inside the window — and levels 1–3 finish an entire search inside 100ms, so the caller sees one zero and nothing else.
+- **Flush once before settling.** The deepest iteration always lands closest to `bestmove`. Without a final unthrottled emit, the reading a caller is left looking at is whatever happened to fall on a throttle boundary.
+
+`SearchResult` also carries the settled search's own `depth`, `scoreCp` and `scoreMate`. Prefer it over the last progress callback when recording anything against the move: it is the reading the move was actually chosen on.
+
+### The telemetry store
+
+Progress lands in `src/store/telemetry.ts`, a zustand store separate from the game store. Two reasons, and both are load-bearing:
+
+- Every component in the rail subscribes to the whole game store, so telemetry there would repaint the transcript at 10Hz.
+- `App` subscribes to the game store and writes the game to storage on every change. Telemetry is an instrument reading, not game state, and has no business in the persistence path.
+
+Consumers **quantise in the selector** (`useTelemetry(searchCells)`), so zustand's identity check absorbs the feed and a component re-renders only when the value it draws actually changes.
+
+**Scores are normalised to white-positive on the way in.** UCI reports relative to the side to move and the engine only searches on its own turn, so what arrives is engine-relative. The controller knows the engine's colour and negates once, at the single write site. Get this backwards and every readout in the app is confidently, precisely wrong in the opposite direction — so both colours are asserted in `tests/unit/telemetry.test.ts`.
+
+Do not display raw evaluation to the user during play at any difficulty. It is recorded onto the ply the search produced (`HistoryEntry.evalCp` / `evalMate`, white-positive) and revealed only once `status.kind === "over"`. Evals do not survive a resume: a PGN is rebuilt from notation and carries no instrument readings, so the readout renders nothing rather than a fabricated zero.
 
 ## Validation of engine output
 

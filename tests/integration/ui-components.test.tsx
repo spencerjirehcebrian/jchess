@@ -192,6 +192,54 @@ describe('UI Component Integration Tests', () => {
     expect(useGameStore.getState().boardFlipped).toBe(true)
   })
 
+  /*
+   * Resigning is irreversible and sits on the same plate as the key that starts
+   * a new game, so it takes two presses. The first must not end anything.
+   */
+  describe('the resign key', () => {
+    it('arms on the first press without ending the game', () => {
+      const controller = new GameController(useGameStore as any)
+      useGameStore.setState(() => ({ status: { kind: 'human-turn' } }))
+      render(<GameControls controller={controller} />)
+
+      fireEvent.click(screen.getByRole('button', { name: /^Resign$/i }))
+
+      expect(useGameStore.getState().status.kind).toBe('human-turn')
+      // The word changes, so the state is carried by the accessible name and
+      // not by colour alone.
+      expect(screen.getByRole('button', { name: /^Resign\?$/i })).toBeTruthy()
+    })
+
+    it('resigns on the second press', () => {
+      const controller = new GameController(useGameStore as any)
+      useGameStore.setState(() => ({ status: { kind: 'human-turn' }, humanColor: 'white' }))
+      render(<GameControls controller={controller} />)
+
+      fireEvent.click(screen.getByRole('button', { name: /^Resign$/i }))
+      fireEvent.click(screen.getByRole('button', { name: /^Resign\?$/i }))
+
+      const status = useGameStore.getState().status as any
+      expect(status.kind).toBe('over')
+      expect(status.result.reason).toBe('resignation')
+      // You lose the game you resign.
+      expect(status.result.winner).toBe('black')
+    })
+
+    it('disarms when another key on the plate is used', () => {
+      const controller = new GameController(useGameStore as any)
+      useGameStore.setState(() => ({ status: { kind: 'human-turn' } }))
+      render(<GameControls controller={controller} />)
+
+      fireEvent.click(screen.getByRole('button', { name: /^Resign$/i }))
+      fireEvent.click(screen.getByRole('button', { name: /^Flip board$/i }))
+
+      // Back to asking, so a half-pressed resign is never left waiting to be
+      // completed by an unrelated click later on.
+      expect(screen.getByRole('button', { name: /^Resign$/i })).toBeTruthy()
+      expect(useGameStore.getState().status.kind).toBe('human-turn')
+    })
+  })
+
   it('disables Take back until there is a human ply to undo', () => {
     const controller = new GameController(useGameStore as any)
     useGameStore.setState(() => ({ status: { kind: 'human-turn' }, history: [] }))

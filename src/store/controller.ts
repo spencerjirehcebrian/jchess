@@ -31,6 +31,14 @@ import { THEMES, applyThemeToCss } from "../render/voxel/palette";
 /** When the clock is worth interrupting the game to mention. */
 const LOW_TIME_MS = 10_000;
 
+/*
+ * A hint is not the opponent talking. It searches at full strength whatever
+ * handicap the level applies, and shallowly enough that the answer arrives
+ * while the player is still looking at the board.
+ */
+const HINT_OPTIONS = { "Skill Level": 20, UCI_LimitStrength: false } as const;
+const HINT_BUDGET = { depth: 12, movetime: 1000 };
+
 function newGameId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return `game-${crypto.randomUUID()}`;
@@ -68,6 +76,9 @@ export class GameController {
 
   /** Latches the ten-second warning so it sounds once a game, not once a tick. */
   private lowTimeWarned = false;
+
+  /** Stops a second hint stacking on the first while it is still thinking. */
+  private hintPending = false;
 
   constructor(store: Store, engine?: Engine) {
     this.store = store;
@@ -769,6 +780,83 @@ export class GameController {
         status: { kind: "engine-thinking", startedAt: Date.now() },
       }));
       this.startEngineSearch();
+    }
+  }
+
+  /**
+   * Concede. The one way to end a game that the rules do not decide for you —
+   * and the reason `Result.reason` has carried a "resignation" case that
+   * nothing could ever produce.
+   */
+  resign(): void {
+    const state = this.state;
+    if (state.status.kind === "over" || state.status.kind === "error") return;
+
+    this.cancelEngineSearch();
+    this.stopFlagWatch();
+    audioEngine.playSound("defeat");
+
+    this.store.setState((prev) => ({
+      status: {
+        kind: "over",
+        result: { winner: opposite(prev.humanColor), reason: "resignation" },
+      },
+      premoves: [],
+      selectedSquare: null,
+      clock: prev.clock ? stopClock(prev.clock, performance.now()) : undefined,
+    }));
+  }
+
+  /**
+   * Ask the engine what it would play here, and select the piece it names.
+   *
+   * The answer is delivered by selecting the from-square rather than by drawing
+   * anything new: selection already lights the square and shows where the piece
+   * can go, so a hint points at a piece and leaves the choice where it was.
+   *
+   * It searches at full strength and ignores the difficulty's handicap — advice
+   * from an opponent playing at 800 Elo is not advice. Nothing needs restoring
+   * afterwards, because every real search re-applies its level's options before
+   * it starts.
+   */
+  async hint(): Promise<void> {
+    const engine = this.engine;
+    if (!engine || this.hintPending) return;
+
+    const state = this.state;
+    if (state.status.kind !== "human-turn") return;
+    // Not while browsing: the hint would be about a position the player has
+    // already left, and selecting a square there means nothing.
+    if (state.cursor !== state.history.length) return;
+
+    // Claims the epoch like any other search, so a move, a takeback or a new
+    // game invalidates the answer instead of applying it to a changed board.
+    const epoch = ++this.searchEpoch;
+    this.hintPending = true;
+
+    try {
+      await engine.setOptions(HINT_OPTIONS);
+      if (this.searchEpoch !== epoch) return;
+
+      const moves = state.history.map((h) => toUci(h.move));
+      const result = await engine.search(state.initialFen, moves, HINT_BUDGET);
+      if (this.searchEpoch !== epoch) return;
+
+      // Re-read after the await: the player may have moved while it thought.
+      const now = this.state;
+      if (now.status.kind !== "human-turn") return;
+
+      const pos = positionAfter(
+        now.initialFen,
+        now.history.map((h) => h.move),
+      );
+      const move = fromUci(result.move, pos);
+      if (move && isLegal(pos, move)) this.setSelectedSquare(move.from);
+    } catch (err: unknown) {
+      // A hint superseded by a real move is the system working, not failing.
+      if (!isSearchCancelled(err)) console.error("Hint search failed:", err);
+    } finally {
+      this.hintPending = false;
     }
   }
 
