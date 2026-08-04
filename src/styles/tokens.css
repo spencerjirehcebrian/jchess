@@ -1,9 +1,5 @@
 :root {
-  /*
-   * The document is the dark room the board sits in. The housing subtree
-   * re-declares this as `light` so native selects and their popups render as
-   * pale chrome on pale plastic instead of dark chrome inside it.
-   */
+  /* The document is the dark room, and the machine standing in it is dark too. */
   color-scheme: dark;
 
   /*
@@ -12,53 +8,59 @@
    * has resolved, already matches the scene instead of flashing a grey shell.
    */
 
-  /* The room the machine stands in. The only dark surface left in the DOM. */
+  /* The room the machine stands in. The housing sits a step above it. */
   --bg: #090605;
 
-  /* Housing — moulded boxwood ABS, the same stock the white pieces are cut from */
-  --surface: #867d6b;
-  --surface-raised: #d8caac;
-  --border: #b1a68d;
-  --border-strong: #867d6b;
+  /* Housing — moulded urushi ABS, the same stock the black pieces are cut from */
+  --surface: #201914;
+  --surface-raised: #2e231c;
+  --border: #54493e;
+  --border-strong: #7a6f61;
 
-  /* Inks silkscreened onto it. Dark, because the housing is pale. */
-  --text: #23201c;
-  --text-dim: #484339;
-  --text-faint: #5a5448;
+  /* Inks silkscreened onto it. Light, because the housing is dark. */
+  --text: #e7dac3;
+  --text-dim: #b0a491;
+  --text-faint: #998d7c;
 
-  /* The signal ink — deep vermilion, the white pieces' detail voxel. Gold is
-     1.1:1 on this housing and cannot be type here; it stays on the board. */
-  --accent: #8e2e1f;
-  --accent-bright: #662116;
-  --accent-dim: #a45d49;
+  /* The signal ink — gold, the black pieces' maki-e detail voxel, and the same
+     colour the board highlights a move with. It was 1.1:1 while the housing was
+     pale and had to leave the DOM entirely; it reads 9.1:1 here. */
+  --accent: #e8c558;
+  --accent-bright: #f2dfa3;
+  --accent-dim: #c9a227;
 
   /* Premove — bright, because it is read on the board, not on the housing */
   --premove: #d1462f;
   --premove-dim: #8e2e1f;
 
   /* Status inks */
-  --warning: #744c17;
-  --error: #983221;
-  --success: #4f5934;
+  --warning: #e0a845;
+  --error: #e8654a;
+  --success: #9cbf6e;
 
   /*
    * Extrusion set. A panel is a voxel seen head-on: its front is a Z face, its
    * top edge catches the sun, its right edge is an X face, its bottom edge is
    * in shadow. Recomputed per theme from the same multipliers the mesher bakes
    * into the geometry, so DOM and canvas are lit by one imaginary sun.
+   *
+   * Depth reads *upward* on a dark machine. The moulded gap around a keycap
+   * used to carry the boundary between a control and its panel, at 6.7:1 on
+   * cream; below a dark deck there is no headroom and the same gap is 1.3:1, so
+   * --voxel-top is the value doing that work now.
    */
-  --voxel-face: #d8caac; /* material x 1.00 — the deck, seen face-on */
-  --voxel-top: #ede0c8; /* specular — the lit bevel on a raised edge */
-  --voxel-side: #b1a68d; /* material x 0.82 — the right edge */
-  --voxel-under: #776f5f; /* material x 0.55 — the shadowed bottom edge */
-  --voxel-hover: #e2d6bd; /* the deck, tinted toward the sheen */
-  --voxel-recess: #867d6b; /* material x 0.62 — a slot moulded in the deck */
-  --voxel-seam: #413d34; /* material x 0.30 — the gap a keycap sits in */
-  --voxel-well: #867d6b;
-  --voxel-accent-face: #662116;
-  --voxel-accent-top: #8e2e1f;
-  --voxel-accent-under: #4e1911;
-  --knockout: #ede0c8; /* a legend knocked out of an accent keycap */
+  --voxel-face: #2e231c; /* material x 1.00 — the deck, seen face-on */
+  --voxel-top: #7a6f61; /* the lit bevel — 3.1:1, the control boundary */
+  --voxel-side: #261d17; /* material x 0.82 — the right edge */
+  --voxel-under: #19130f; /* material x 0.55 — the shadowed bottom edge */
+  --voxel-hover: #3d332b; /* the deck, tinted toward the lit edge */
+  --voxel-recess: #1c1511; /* material x 0.62 — a slot moulded in the deck */
+  --voxel-seam: #0d0a08; /* material x 0.30 — the gap a keycap sits in */
+  --voxel-well: #140f0c;
+  --voxel-accent-face: #e8c558;
+  --voxel-accent-top: #ecd287;
+  --voxel-accent-under: #a78d3f;
+  --knockout: #2e231c; /* a legend knocked out of an accent keycap */
 
   /*
    * The display. Derived from `lcdOn` per theme by applyThemeToCss; these are

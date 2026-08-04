@@ -60,15 +60,21 @@ function SearchIndicator() {
 }
 
 /**
- * A rack of captured pieces, drawn with the same voxel grids the board renders.
- * The icons are the assets, not a second set of illustrations that would drift
+ * The pieces taken, drawn with the same voxel grids the board renders. The
+ * icons are the assets, not a second set of illustrations that would drift
  * from them.
  *
- * It is a recess — a voxel removed, the inverse of the raised panels around it
- * — and it holds its height whether it is full or empty. Both facts matter: the
- * rack used to collapse to nothing before the first capture, so a player who
- * had taken no pieces appeared to have no tray at all, and it grew a row at a
- * time as the game went on, shifting everything below it in the rail.
+ * They lie on the deck rather than in a tray. It used to be a moulded recess,
+ * which meant two grey slots sat in the rail doing nothing for most of a game —
+ * a container drawn around an absence. The pieces carry their own outline
+ * (`sprite.ts` stamps a contrasting halo precisely so they read on any surface),
+ * so the box was never what made them legible.
+ *
+ * The height stays reserved whether the rack is full or empty. That is the one
+ * thing worth keeping from the tray: the rack used to collapse to nothing
+ * before the first capture and then grow a row at a time, shifting everything
+ * below it in the rail. Empty space costs nothing to look at now that there is
+ * no box drawn around it.
  */
 function Trophies({ counts, of }: { counts: RoleCounts; of: Color }) {
   const themeId = useGameStore((s) => s.theme) ?? "lacquer";
@@ -84,9 +90,6 @@ function Trophies({ counts, of }: { counts: RoleCounts; of: Color }) {
 
   return (
     <div
-      className={
-        sprites.length === 0 ? "vx-recess vx-dither" : "vx-recess"
-      }
       style={{
         display: "flex",
         alignItems: "flex-start",
@@ -102,7 +105,6 @@ function Trophies({ counts, of }: { counts: RoleCounts; of: Color }) {
         // the baseline fell on a half and the advantage readout beside it blurred.
         height: "46px",
         overflow: "hidden",
-        padding: "2px",
       }}
     >
       {sprites.map(({ role, key }) => {
@@ -312,11 +314,23 @@ export function PlayerRow({ side }: PlayerRowProps) {
         flexDirection: "column",
         gap: "var(--sp-2)",
         padding: "var(--sp-3)",
-        // The side to move is the lit one. Turn state is carried by the
-        // material system rather than by a coloured dot; the status text
-        // beside it says the same thing in words.
-        background: isActive ? "var(--voxel-hover)" : "transparent",
-        transition: "background var(--dur-base) ease",
+        /*
+         * The side to move is marked by a lit edge, not by a lighter panel.
+         *
+         * It was a lighter panel while the housing was pale, where raising the
+         * background raised the contrast of the dark ink on it. On a dark deck
+         * it does the opposite: lifting the surface under light ink eats the
+         * ink's headroom, and it measured 3.5:1 for the faintest two lines in
+         * the row — under the floor, in the one row the player is looking at.
+         *
+         * Solving the inks against the lit panel instead would have worked and
+         * been worse: it pushes text-faint up to within a hair of text-dim and
+         * collapses a three-step ink ramp into two. So the cue moves to an edge,
+         * which is how everything else on this machine says "lit", and the
+         * transparent border keeps the text from shifting 2px when it changes.
+         */
+        borderLeft: `2px solid ${isActive ? "var(--accent)" : "transparent"}`,
+        transition: "border-color var(--dur-base) ease",
       }}
     >
       {/*

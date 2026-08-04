@@ -4,10 +4,9 @@ import {
   THEMES,
   applyThemeToCss,
   shadeHex,
+  tintHex,
   inkPalette,
-  FACE_SHADING,
   LCD_SHADING,
-  SEAM_SHADING,
 } from "../../src/render/voxel/palette";
 
 /** WCAG relative luminance. */
@@ -59,17 +58,22 @@ describe("UI component unit tests", () => {
   });
 
   /*
-   * The housing is pale and every ink on it is dark, which inverted every
-   * contrast ratio in the app at once. These assertions are the reason that
-   * flip is safe to keep making: a theme cannot be added, or an ink nudged for
-   * looks, without proving it is still readable.
+   * The housing has now been inverted twice — dark, then pale, then dark again
+   * — and each flip turned every contrast ratio in the app upside down at once.
+   * These assertions are the reason that is a safe thing to keep doing. They
+   * assert ratios rather than polarity, so they survive a flip intact and fail
+   * loudly on whatever it broke, which is exactly what happened both times.
    */
   /*
    * The keycap legends are drawn, not typed, so nothing about them is caught by
-   * the ink assertions below: they go through the sprite renderer, which
-   * multiplies each material by the mesher's face shading before painting it.
-   * A material that clears 4.5:1 as text can only get darker from there — but
-   * "can only get darker" is an argument, and this is the assertion.
+   * the ink assertions below — they go through the sprite renderer.
+   *
+   * They are rendered with `litTint`, which lights a top face by tinting *up*
+   * rather than shading the other faces down. That is what makes the ink's own
+   * value the worst case: the unlit face is the ink at full strength, and the
+   * lit face can only be lighter than it against a dark deck. Shading down
+   * instead — which is what pieces do, and what these did while the housing was
+   * pale — put the dimmer materials at 2.1:1 against their own key.
    */
   it("keeps every keycap icon readable on its own key", () => {
     for (const [id, theme] of Object.entries(THEMES)) {
@@ -78,13 +82,16 @@ describe("UI component unit tests", () => {
       const keycap = theme.cssTokens.surfaceRaised;
 
       for (const material of ["base", "accent", "shade", "detail"] as const) {
-        // Both faces the renderer can give a voxel: a lit top and a front.
-        for (const face of [FACE_SHADING.top, FACE_SHADING.sideZ]) {
-          expect(
-            contrast(shadeHex(ink[material], face), keycap),
-            `${id}: icon ${material} at face ${face} on the keycap`,
-          ).toBeGreaterThanOrEqual(3);
-        }
+        expect(
+          contrast(ink[material], keycap),
+          `${id}: icon ${material} on the keycap`,
+        ).toBeGreaterThanOrEqual(3);
+
+        // And the lit face genuinely goes up, or the argument above is void.
+        expect(
+          contrast(tintHex(ink[material], theme.white.base, 0.35), keycap),
+          `${id}: icon ${material}, lit face, on the keycap`,
+        ).toBeGreaterThanOrEqual(3);
       }
     }
   });
@@ -109,13 +116,43 @@ describe("UI component unit tests", () => {
         ).toBeGreaterThanOrEqual(4.5);
       }
 
-      // The seam is the moulded gap a keycap sits in, and it is what separates
-      // a control from the deck — both are the same shot of plastic, so there
-      // is no value difference doing that job. UI boundary, so 3:1.
+      /*
+       * The lit edge is what separates a control from the deck. Both are the
+       * same shot of plastic, so no value difference does that job — and on a
+       * dark machine the moulded gap that used to do it cannot: `seam` is
+       * `material x 0.30`, which fell to near-black on cream and gave 6.68:1,
+       * but lands 1.28:1 from a dark deck. There is no headroom below, so the
+       * boundary is carried by going up. UI boundary, so 3:1.
+       *
+       * This is the load-bearing assertion of the entire dark palette. If it
+       * fails, every button on the machine has stopped being identifiable as a
+       * button.
+       */
       expect(
-        contrast(shadeHex(face, SEAM_SHADING), face),
-        `${id}: --voxel-seam against the deck`,
+        contrast(t.bevel, face),
+        `${id}: --voxel-top, the lit edge, against the deck`,
       ).toBeGreaterThanOrEqual(3);
+
+      // And it has to be lighter than the deck, not merely different from it —
+      // a bevel that reads as a shadow is not a bevel.
+      expect(
+        luminance(t.bevel) > luminance(face),
+        `${id}: the lit edge is lighter than the deck`,
+      ).toBe(true);
+
+      /*
+       * The hovered key is a lighter surface than the deck, and on a dark
+       * machine a lighter surface *costs* an ink its headroom rather than
+       * giving it more. Only `--text` is ever set on it — a hovered control
+       * brightens its own label — so that is the pairing asserted. Putting a
+       * dimmer ink on this surface is what measured 3.5:1 and moved the
+       * active-row cue off a panel and onto an edge.
+       */
+      const hovered = tintHex(face, t.bevel, 0.28);
+      expect(
+        contrast(t.text, hovered),
+        `${id}: --text on a hovered control`,
+      ).toBeGreaterThanOrEqual(4.5);
 
       // A decorative rule, not a boundary, so it only owes 3:1.
       expect(

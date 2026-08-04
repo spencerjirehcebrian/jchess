@@ -1,6 +1,6 @@
 import { Role } from "../../core/types";
 import { PIECE_DEFINITIONS, VoxelGrid } from "./pieces";
-import { Palette, FACE_SHADING } from "./palette";
+import { Palette, FACE_SHADING, tintHex } from "./palette";
 
 /**
  * Renders a voxel grid's front elevation as a pixel sprite.
@@ -66,6 +66,21 @@ export interface SpriteOptions {
   /** Device pixels per voxel. */
   pixel?: number;
   /**
+   * Light a voxel's top face by tinting *up* toward this colour, instead of
+   * shading its other faces down.
+   *
+   * Pieces leave this unset: they are objects in a lit scene, and the mesher's
+   * shading is what makes them agree with the board they stand on.
+   *
+   * Keycap legends need it. Shading down was free contrast while the housing
+   * was pale — a darker ink on cream — and costs it now the deck is dark, which
+   * dropped the dimmer materials to 2.1:1 against their own key. It is the same
+   * inversion the housing itself went through: on a dark machine, depth reads
+   * upward. The unlit face is then the ink at full strength, so the ink's own
+   * contrast floor is the worst case rather than a fraction of it.
+   */
+  litTint?: string;
+  /**
    * A one-voxel contrasting outline, and the margin it needs.
    *
    * Pieces need it: the same sprite has to read on a pale keycap, in a dark
@@ -91,7 +106,7 @@ export function voxelSpriteUrl(
   const pixel = opts.pixel ?? 3;
   const halo = opts.halo ?? true;
 
-  const key = `${id}-${palette.base}-${palette.detail}-${pixel}-${halo}`;
+  const key = `${id}-${palette.base}-${palette.detail}-${pixel}-${halo}-${opts.litTint ?? ""}`;
   const cached = cache.get(key);
   if (cached) return cached;
 
@@ -141,11 +156,17 @@ export function voxelSpriteUrl(
 
       // A voxel with nothing above it shows its top face; otherwise its front.
       const lit = !filled(y + 1, z, x);
+      const color = opts.litTint
+        ? lit
+          ? tintHex(base, opts.litTint, 0.35)
+          : base
+        : shade(base, lit ? FACE_SHADING.top : FACE_SHADING.sideZ);
+
       cells.push({
         x: x + margin,
         // Grids are authored bottom-up, the way the renderer stacks them.
         y: height - 1 - y + margin,
-        color: shade(base, lit ? FACE_SHADING.top : FACE_SHADING.sideZ),
+        color,
       });
     }
   }

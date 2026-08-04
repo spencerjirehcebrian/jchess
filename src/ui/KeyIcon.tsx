@@ -26,7 +26,9 @@ export function KeyIcon({ name }: { name: IconName }) {
     inkPalette(theme.cssTokens),
     // 8 voxels at 2 device pixels each: 16px, even, so it centres on a whole
     // pixel in the 40px key. No halo — an icon only ever sits on one surface.
-    { pixel: 2, halo: false },
+    // The lit face tints toward the theme's sheen rather than shading the rest
+    // down, because on a dark key shading down is contrast spent, not gained.
+    { pixel: 2, halo: false, litTint: theme.white.base },
   );
   if (!url) return null;
 

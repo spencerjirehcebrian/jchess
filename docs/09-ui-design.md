@@ -19,17 +19,30 @@ each cube face — top 1.00, X sides 0.82, Z sides 0.72, bottom 0.55 — and the
 reuses those numbers, so a keycap and a pawn are lit by one imaginary sun.
 
 You are looking *down* at a control deck, so the surface you see is a `+Y` face:
-the deck is the material at **1.00**, not a shaded fraction of it. This is not a
-detail. Taking the deck at the front-face 0.72 instead leaves exactly one ink
-above 4.5:1 on it and no readable red at any lightness, and `--voxel-well` at
-0.45 tops out at 3.01:1 against pure black — unusable in either polarity. The
-pale housing only works from the top face.
+the deck is the material at **1.00**, not a shaded fraction of it.
 
-The lit bevel along a raised edge is then a **specular** term rather than a fifth
-face. Moulded ABS has a hard sheen, and a specular highlight is legitimately
-brighter than the diffuse maximum — which is the only way an edge can still catch
-light on a surface already at 1.00. It is `white.base`, the boxwood the white
-pieces are cut from, so the machine and the men are made of one material.
+**The housing is dark, and the same value family as the room it stands in.** The
+board renders a dark room, and a cream machine beside it read as two different
+products sharing a screen. It is each theme's `black.base` — the urushi the black
+pieces are cut from — a step lighter than the room, so the machine still has an
+edge rather than being the page merely going dark.
+
+**Depth reads upward, and this is the load-bearing fact of the whole palette.**
+Every multiplier in the material system goes *down*: 0.82, 0.72, 0.55, and the
+0.30 the keyplate gap uses. On a pale deck that is free contrast — the gap around
+a keycap fell to near-black and carried the 3:1 boundary between a control and
+its panel at **6.7:1** all by itself. A dark deck has no headroom below it: the
+same 0.30 lands **1.28:1** from the face, and the keys dissolve into the panel.
+
+So the lit edge does that job instead. `bevel` is a solved token, not a
+multiplied one, because a multiplier cannot go the way this needs to go: it is
+the deck tinted toward that theme's sheen until it clears 3.05:1. It lands at a
+tint of 0.37–0.49 across all four themes, which is how you can tell the model
+fits rather than having been fitted.
+
+The seam, the recess and the well all survive — a slot still reads as a slot —
+but none of them owes a ratio any more. Anything that has to be *identified* is
+identified by its lit edge.
 
 Corners step rather than curve, matching the two-voxel taper on every piece base.
 Radius is zero. There are no blurred shadows anywhere, and the one translucent
@@ -37,40 +50,62 @@ surface in the app is the modal scrim, which earns it: occlusion across a whole
 scene is a wash, while edges and shadows are hard because the material is.
 
 **Keys and deck are the same colour, and that is deliberate.** A single moulding
-is one shot of plastic. What separates a control from the panel it sits on is the
-dark moulded gap around it — `.vx-keyplate`, at `--voxel-seam`. That seam carries
-the 3:1 non-text contrast floor at ~6.7:1, which no amount of tinting the deck
-could achieve without dragging the inks back under 4.5:1.
+is one shot of plastic — and on a dark deck it also protects contrast, because
+lifting keycaps clear of the deck would drop gold-on-keycap to 3.4:1, under the
+floor for text. A key is a key because of its lit edge.
 
-**Three colour families, and they must not be mixed.** They are read against three
-different backgrounds, so a value that works in one is wrong in the others:
+**Two colour families now, where there were three.** They are read against two
+different surfaces, so a value that works on one is wrong on the other:
 
 | family | read against | example |
 |---|---|---|
-| Housing inks | pale moulded plastic | `--text`, `--accent` |
-| Board signals | the dark room | `boardAccent`, `premove` |
+| Housing inks | dark moulded plastic | `--text`, `--accent` |
 | Display levels | near-black glass | `--lcd-on`, `--lcd-dim` |
 
-`accent` used to do the first two jobs at once — it was the gold on the board's
-last-move highlight *and* the DOM's accent. Once the chrome went pale those
-requirements inverted: gold is **1.1:1** on the deck and simply invisible. Gold
-keeps every job it had on the board and has none in the DOM.
+`accent` and `boardAccent` were split apart when the chrome went pale, because
+gold is **1.1:1** on cream and could not be type there. They are reunited now
+that the machine is dark: the highlight on the board and the accent in the rail
+are one colour, which is what the split was always costing. `boardAccent*` remain
+separate fields only because `OverlayManager` reads them by name.
 
-`applyThemeToCss()` derives all three families from the active theme, so the
-machine re-lights itself when the board does. `tests/unit/ui.test.ts` asserts
-every ink clears 4.5:1 on its own housing, every display level clears 4.5:1
-against its own unlit cells, and every board signal clears 3:1 against the room —
-for all four themes. A theme cannot be added, or a colour nudged for looks,
-without proving it is still readable.
+The DOM accent is `boardAccentBright`, not `boardAccent` — the mid board value
+fails the 4.5:1 text floor in two themes (Oxide 3.84, Forest 4.30). The mid value
+becomes `--accent-dim`, which is decorative and owes 3:1. **Knockout inverts**:
+dark text on a bright accent keycap, and the dark it uses is the deck itself.
 
-**The UI's icons are the assets.** `pieceSpriteUrl()` reads the same voxel grids
-the renderer meshes and draws each piece's front elevation as a pixel sprite. The
-captured tray and the promotion picker use those; drawing a second set of
-illustrations would mean maintaining two versions of six shapes, and they would
-drift. Sprites carry a one-voxel contrasting halo, because the same sprite has to
-read on a pale keycap, in a moulded tray and over the board — a white piece is
-2.4:1 on the deck and a black piece 1.5:1 in the slot it sits in, so no single
-background serves both sets and the fix belongs to the sprite.
+`applyThemeToCss()` derives both families from the active theme, so the machine
+re-lights itself when the board does. `tests/unit/ui.test.ts` asserts every ink
+clears 4.5:1 on its own housing, the lit edge clears 3:1 and is genuinely
+lighter than the deck, every display level clears 4.5:1 against its own unlit
+cells, and every board signal clears 3:1 against the room — for all four themes.
+
+Those assertions are why the polarity has now been flipped twice without
+breaking. They assert **ratios, not polarity**, so they survive a flip intact and
+fail loudly on whatever it broke — which is exactly what happened both times.
+
+**Contrast is a property of a pairing, not of a colour.** An ink is only solved
+against a specific surface, so a surface that moves invalidates it. Lightening
+the active player row cost the two faintest lines in that row their floor
+(measured 3.5:1) even though both inks were solved and passing against the deck.
+Re-solving them against the lit row would have worked and been worse: it pushes
+`textFaint` within a hair of `textDim` and collapses a three-step ink ramp into
+two. The cue moved to a lit edge instead, which costs nothing and is how the rest
+of the machine says "lit" anyway.
+
+**The UI's icons are the assets.** `voxelSpriteUrl()` reads the same voxel grids
+the renderer meshes and draws each shape's front elevation as a pixel sprite. The
+captured pieces, the promotion picker and the keycap legends all use it; drawing
+a second set of illustrations would mean maintaining two versions of the same
+shapes, and they would drift.
+
+Piece sprites carry a one-voxel contrasting halo, because the same sprite has to
+read on a keycap, on the open deck and over the board, and no single background
+serves both sets — so the fix belongs to the sprite rather than to whatever is
+behind it. That is what lets the captured pieces lie **directly on the deck with
+no tray around them**: the box was never what made them legible, and drawn as a
+recess it was two grey slots sitting in the rail doing nothing for most of a
+game. The reserved height stays, so the rack cannot collapse before the first
+capture and then grow a row at a time, shifting the column below it.
 
 **The signature element is the display.** A dot-matrix LCD whose *undriven* cells
 stay permanently visible: the cell grid is painted whether or not anything is lit,
@@ -99,32 +134,34 @@ so the first paint matches the scene instead of flashing a grey shell.
 
 ```css
 :root {
-  /* The room the machine stands in. The only dark surface left in the DOM. */
+  /* The room the machine stands in. The housing sits a step above it. */
   --bg:            #090605;
 
-  /* Housing — moulded boxwood ABS, the stock the white pieces are cut from */
-  --surface-raised:#D8CAAC;   /* the material itself; everything derives from it */
-  --border:        #B1A68D;
-  --border-strong: #867D6B;
+  /* Housing — moulded urushi ABS, the stock the black pieces are cut from */
+  --surface-raised:#2E231C;   /* the material itself; everything derives from it */
+  --border:        #54493E;
+  --border-strong: #7A6F61;
 
-  /* Inks silkscreened onto it. Dark, because the housing is pale. */
-  --text:          #23201C;   /* 10.0:1 */
-  --text-dim:      #484339;   /*  6.1:1 */
-  --text-faint:    #5A5448;   /*  4.6:1 */
+  /* Inks silkscreened onto it. Light, because the housing is dark. */
+  --text:          #E7DAC3;   /* 11.1:1 */
+  --text-dim:      #B0A491;   /*  6.2:1 */
+  --text-faint:    #998D7C;   /*  4.7:1 */
 
-  /* The signal ink — deep vermilion. Gold is 1.1:1 here and stays on the board. */
-  --accent:        #8E2E1F;   /*  5.1:1 */
-  --accent-bright: #662116;   /*  7.2:1 — focus ring, pressed states */
-  --accent-dim:    #A45D49;   /*  3.1:1 — a decorative rule, not a boundary */
+  /* The signal ink — gold, the same colour the board highlights a move with. */
+  --accent:        #E8C558;   /*  9.1:1 */
+  --accent-bright: #F2DFA3;   /* 11.6:1 — focus ring, pressed states */
+  --accent-dim:    #C9A227;   /*  6.3:1 — a decorative rule, not a boundary */
 
-  /* Extrusion, from the mesher's face shading. The deck is a +Y face. */
+  /* Extrusion, from the mesher's face shading. The deck is a +Y face.
+     Depth reads *upward*: --voxel-top is the only value below that carries a
+     ratio, because below a dark deck there is nowhere left to go. */
   --voxel-face:   ...;  /* material x 1.00 — the deck, seen face-on */
-  --voxel-top:    ...;  /* specular — the lit bevel on a raised edge */
+  --voxel-top:    ...;  /* the lit bevel — solved to 3.1:1, the control boundary */
   --voxel-side:   ...;  /* material x 0.82 — the right edge */
   --voxel-under:  ...;  /* material x 0.55 — the shadowed bottom edge */
-  --voxel-hover:  ...;  /* the deck, tinted toward the sheen */
+  --voxel-hover:  ...;  /* the deck, tinted toward the lit edge */
   --voxel-recess: ...;  /* material x 0.62 — a slot moulded in the deck */
-  --voxel-seam:   ...;  /* material x 0.30 — the gap a keycap sits in */
+  --voxel-seam:   ...;  /* material x 0.30 — decorative; 1.3:1 from the deck */
 
   /* The display, as one emitter at several strengths */
   --lcd-on:    ...;  /* a lit pixel */
@@ -382,11 +419,17 @@ to author upside down.
 - **8×8 at `pixel: 2` — 16px.** The size at which a pixel icon has been legible
   since icons existed, and even, so it centres on a whole pixel in a 40px key.
 - **Housing inks, not piece colours** (`inkPalette`). A legend is printed on the
-  same moulding the deck is, so it is read against pale plastic and has to come
-  from the family that was solved against pale plastic.
+  same moulding the deck is, so it is read against the same plastic and has to
+  come from the family that was solved against it.
+- **Lit by tinting up, not by shading down** (`litTint`). Pieces keep the
+  mesher's shading, because they are objects in a lit scene. A legend on a dark
+  key cannot: shading the unlit face down was free contrast on cream and dropped
+  the dimmer materials to **2.1:1** against their own key here. Tinting the *lit*
+  face up instead makes the ink's own value the worst case rather than a fraction
+  of it — the same inversion the housing itself went through.
 - **No halo.** Pieces carry a contrasting outline because the same sprite has to
   work on a keycap, in a dark tray and over the board. An icon only ever sits on
-  one surface, and a light halo around a dark icon on cream reads as a glow.
+  one surface, and a halo around an icon on its own key reads as a glow.
 - **No hover state.** A screen-printed legend does not change colour when a
   finger approaches; the key underneath already lights. Disabled comes free from
   the button's own opacity.
