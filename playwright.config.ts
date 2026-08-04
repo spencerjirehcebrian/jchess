@@ -16,6 +16,14 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
+      // Desktop Chrome has no touch, so the touch spec would assert nothing
+      // here. It runs in the mobile project below instead.
+      testIgnore: /touch-drag\.spec\.ts/,
+    },
+    {
+      name: 'mobile-chrome',
+      use: { ...devices['Pixel 7'] },
+      testMatch: /touch-drag\.spec\.ts/,
     },
   ],
   webServer: {

@@ -10,8 +10,39 @@ import { RenderedPiece, SHADOW_REST_OPACITY } from "./pieces";
  */
 export const DRAG_LIFT = 0.6;
 
-/** Pointer travel, in CSS pixels, before a press becomes a drag. */
+/**
+ * How high a held piece rides under a finger.
+ *
+ * At 0.6 the piece sits about 34 CSS pixels up-screen from the contact point,
+ * and a fingertip covers roughly 25 pixels in every direction from it — so the
+ * thing you are dragging is entirely underneath your own hand. A mouse cursor
+ * has no such problem, which is why the spec's single number works everywhere
+ * else.
+ *
+ * Measured against a 9mm contact patch on a Pixel 7: at 0.6 only the crown
+ * clears the finger, at 1.0 the crown and collar, and at 1.4 the whole piece.
+ * Past that it stops reading as held above its square.
+ */
+export const DRAG_LIFT_TOUCH = 1.4;
+
+export function dragLiftFor(pointerType: string): number {
+  return pointerType === "touch" ? DRAG_LIFT_TOUCH : DRAG_LIFT;
+}
+
+/**
+ * Pointer travel, in CSS pixels, before a press becomes a drag.
+ *
+ * `docs/08-input.md` gives 4px flat, which is right for a device that reports a
+ * point. A fingertip reports the centroid of a contact patch, and that centroid
+ * wanders several pixels during an ordinary tap, so 4px turns half the taps on
+ * a piece into one-pixel drags that end where they started.
+ */
 export const DRAG_THRESHOLD_PX = 4;
+export const DRAG_THRESHOLD_TOUCH_PX = 10;
+
+export function dragThresholdFor(pointerType: string): number {
+  return pointerType === "touch" ? DRAG_THRESHOLD_TOUCH_PX : DRAG_THRESHOLD_PX;
+}
 
 /**
  * How long a released piece takes to land. Both give roughly a 90ms fall — the
@@ -49,6 +80,7 @@ export class PieceDragController {
   private worldX = 0;
   private worldZ = 0;
   private lift = 0;
+  private liftTarget = DRAG_LIFT;
 
   private velX = 0;
   private velZ = 0;
@@ -85,12 +117,18 @@ export class PieceDragController {
     };
   }
 
-  begin(piece: RenderedPiece, from: Square, world: THREE.Vector3) {
+  begin(
+    piece: RenderedPiece,
+    from: Square,
+    world: THREE.Vector3,
+    pointerType = "mouse",
+  ) {
     this.piece = piece;
     this.fromSquare = from;
     this.worldX = world.x;
     this.worldZ = world.z;
     this.lift = piece.mesh.position.y;
+    this.liftTarget = dragLiftFor(pointerType);
     this.velX = 0;
     this.velZ = 0;
     this.swingPitch = 0;
@@ -125,7 +163,7 @@ export class PieceDragController {
 
     const step = Math.min(0.05, Math.max(0.001, dt));
 
-    this.lift += (DRAG_LIFT - this.lift) * Math.min(1, LIFT_RATE * step);
+    this.lift += (this.liftTarget - this.lift) * Math.min(1, LIFT_RATE * step);
 
     if (this.reducedMotion) {
       this.swingPitch = 0;
@@ -177,7 +215,7 @@ export class PieceDragController {
     );
 
     const settled =
-      Math.abs(this.lift - DRAG_LIFT) < 0.002 &&
+      Math.abs(this.lift - this.liftTarget) < 0.002 &&
       Math.abs(this.swingVelRoll) < 0.002 &&
       Math.abs(this.swingVelPitch) < 0.002 &&
       Math.abs(this.swingRoll) < 0.002 &&

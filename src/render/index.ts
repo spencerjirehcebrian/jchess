@@ -7,7 +7,7 @@ import { OverlayManager } from "./overlay";
 import { raycastToBoard, raycastToSquare, squareToWorld } from "./picking";
 import {
   PieceDragController,
-  DRAG_THRESHOLD_PX,
+  dragThresholdFor,
   DROP_QUIET_MS,
   DROP_CAPTURE_MS,
 } from "./drag";
@@ -150,6 +150,16 @@ export class Renderer {
     this.canvas.addEventListener("pointerup", this.handlePointerUp);
     this.canvas.addEventListener("pointermove", this.handlePointerMove);
     this.canvas.addEventListener("pointercancel", this.handlePointerCancel);
+
+    // A test seam, dev builds only. Board squares exist in a WebGL scene, so a
+    // browser test has no element to aim at and no way to derive one without
+    // reimplementing the projection. Exposing the projection the renderer
+    // already computes keeps `tests/e2e/touch-drag.spec.ts` exact instead of
+    // approximate, and it disappears from production bundles.
+    if (import.meta.env.DEV) {
+      (this.canvas as HTMLCanvasElement & { __squareToScreen?: unknown })
+        .__squareToScreen = (square: Square) => this.squareToScreen(square);
+    }
 
     this.requestRender();
   }
@@ -700,7 +710,7 @@ export class Renderer {
     ) {
       const dx = e.clientX - this.pressClient.x;
       const dy = e.clientY - this.pressClient.y;
-      if (Math.hypot(dx, dy) >= DRAG_THRESHOLD_PX) {
+      if (Math.hypot(dx, dy) >= dragThresholdFor(e.pointerType)) {
         this.beginDrag(this.pressSquare, e);
         return;
       }
@@ -747,7 +757,7 @@ export class Renderer {
     // A piece in the player's hand is not the animation's to move.
     this.animEngine.cancelAll();
     this.pieceManager.holdPiece(from);
-    this.dragController.begin(piece, from, world);
+    this.dragController.begin(piece, from, world, e.pointerType);
     this.lastDragMoveTime = performance.now();
 
     this.canvas.style.cursor = "grabbing";

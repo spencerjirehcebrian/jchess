@@ -67,6 +67,27 @@ Two deliberate departures:
   already shrinks and dims (`animation/engine.ts`), and a dragged piece and a
   moving piece should read the same way. Consistency won.
 - **A drag skips the flight but keeps the landing.** See below.
+- **The threshold and the lift are split by pointer type.** See below.
+
+## A Finger Is Not a Cursor
+
+`docs/08-input.md` gives one drag threshold (4px) and one lift
+(`0.6 * squareSize`). Both are right for a device that reports a point and
+occludes nothing, and both are wrong for a fingertip.
+
+- **Threshold: 4px for mouse and pen, 10px for touch.** A finger reports the
+  centroid of a contact patch, and that centroid wanders several pixels during
+  an ordinary tap. At 4px half the taps on a piece became one-pixel drags that
+  ended where they started.
+- **Lift: 0.6 for mouse and pen, 1.4 for touch.** At 0.6 the held piece sits
+  entirely underneath the hand holding it. Measured against a 9mm contact patch
+  at a mobile viewport: 0.6 clears only the crown, 1.0 the crown and collar, 1.4
+  the whole piece. Beyond 1.4 it stops reading as held above its square.
+
+Both live in `render/drag.ts` as `dragThresholdFor` / `dragLiftFor`, so the
+split is one decision in one place rather than a scatter of `pointerType`
+checks. `tests/e2e/touch-drag.spec.ts` runs on a touch-enabled Playwright
+project and is the regression that a finger can move a piece at all.
 
 ## Travel and Arrival
 
