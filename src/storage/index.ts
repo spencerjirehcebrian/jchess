@@ -1,14 +1,34 @@
 import { openDB, IDBPDatabase } from "idb";
-import { GameState } from "../core/types";
+import { Color, GameState } from "../core/types";
 import { serializePgn } from "../core/pgn";
 
 const DB_NAME = "jchess-db";
-const DB_VERSION = 1;
 
-interface SavedGameRecord {
+/**
+ * v2 replaced two stores of serialized `GameState` with one store of PGN.
+ * `docs/04-game-core.md` asks for PGN because it survives refactors of the
+ * internal shape and is directly exportable; a stored `GameState` breaks
+ * silently the first time a field changes. Nothing had ever written to the v1
+ * stores — persistence was never wired up — so the upgrade drops them.
+ */
+const DB_VERSION = 2;
+const STORE = "games";
+
+/** Oldest are pruned past this on write (`docs/04-game-core.md`). */
+const RETAIN_GAMES = 50;
+
+/** A game older than this is not offered for resume. */
+const RESUME_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+const SAVE_DEBOUNCE_MS = 500;
+
+export interface StoredGame {
   id: string;
-  state: GameState;
+  pgn: string;
+  difficulty: number;
+  humanColor: Color;
   updatedAt: number;
+  completed: boolean;
 }
 
 let dbPromise: Promise<IDBPDatabase | null> | null = null;
@@ -18,11 +38,11 @@ function getDB(): Promise<IDBPDatabase | null> {
   if (!dbPromise) {
     dbPromise = openDB(DB_NAME, DB_VERSION, {
       upgrade(db) {
-        if (!db.objectStoreNames.contains("active-game")) {
-          db.createObjectStore("active-game", { keyPath: "id" });
+        for (const stale of ["active-game", "game-history"]) {
+          if (db.objectStoreNames.contains(stale)) db.deleteObjectStore(stale);
         }
-        if (!db.objectStoreNames.contains("game-history")) {
-          db.createObjectStore("game-history", { keyPath: "id" });
+        if (!db.objectStoreNames.contains(STORE)) {
+          db.createObjectStore(STORE, { keyPath: "id" });
         }
       },
     }).catch(() => null);
@@ -30,94 +50,124 @@ function getDB(): Promise<IDBPDatabase | null> {
   return dbPromise;
 }
 
+/**
+ * Whether games can be stored at all. False in private browsing and when the
+ * quota is exhausted; the app then runs entirely in memory, with no resume
+ * affordance and no error dialog (`docs/04-game-core.md`).
+ */
+export async function isStorageAvailable(): Promise<boolean> {
+  return (await getDB()) !== null;
+}
+
+function toRecord(state: GameState): StoredGame {
+  return {
+    id: state.id,
+    pgn: serializePgn(state),
+    difficulty: state.difficulty,
+    humanColor: state.humanColor,
+    updatedAt: Date.now(),
+    completed: state.status.kind === "over",
+  };
+}
+
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingStateToSave: GameState | null = null;
 
-export async function flushActiveGame(state?: GameState): Promise<void> {
-  const targetState = state ?? pendingStateToSave;
-  if (!targetState) return;
+/**
+ * Writes the pending game immediately. Called on the debounce timer, and
+ * directly when the tab is about to go away — a 500ms window is long enough to
+ * lose the last move to a closed tab.
+ */
+export async function flushGame(state?: GameState): Promise<void> {
+  const target = state ?? pendingStateToSave;
+  if (!target) return;
   if (saveTimer !== null) {
     clearTimeout(saveTimer);
     saveTimer = null;
   }
   pendingStateToSave = null;
+
   const db = await getDB();
   if (!db) return;
 
   try {
-    const record: SavedGameRecord = {
-      id: "active",
-      state: targetState,
-      updatedAt: Date.now(),
-    };
-    await db.put("active-game", record);
+    await db.put(STORE, toRecord(target));
+    await pruneGames(db);
   } catch {
-    // Storage unavailable
+    // Storage unavailable; the game continues in memory.
   }
 }
 
 if (typeof window !== "undefined") {
   window.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden" && pendingStateToSave) {
-      flushActiveGame();
+      flushGame();
     }
   });
   window.addEventListener("beforeunload", () => {
-    if (pendingStateToSave) {
-      flushActiveGame();
-    }
+    if (pendingStateToSave) flushGame();
   });
 }
 
-export async function saveActiveGame(state: GameState): Promise<void> {
+/** Debounced. Never on the critical path of applying a move. */
+export function saveGame(state: GameState): void {
   pendingStateToSave = state;
-  if (saveTimer !== null) {
-    clearTimeout(saveTimer);
-  }
-
+  if (saveTimer !== null) clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    flushActiveGame();
-  }, 500);
+    flushGame();
+  }, SAVE_DEBOUNCE_MS);
 }
 
-export async function loadActiveGame(): Promise<GameState | null> {
+async function pruneGames(db: IDBPDatabase): Promise<void> {
+  try {
+    const all = (await db.getAll(STORE)) as StoredGame[];
+    if (all.length <= RETAIN_GAMES) return;
+    const doomed = all
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .slice(RETAIN_GAMES);
+    for (const record of doomed) {
+      await db.delete(STORE, record.id);
+    }
+  } catch {
+    // Pruning is housekeeping; failing it must not fail the write.
+  }
+}
+
+/**
+ * The game to offer resuming, or null. Most recent incomplete game, within a
+ * week. Older than that and the offer is noise rather than help.
+ */
+export async function loadResumableGame(): Promise<StoredGame | null> {
   const db = await getDB();
   if (!db) return null;
 
   try {
-    const record = (await db.get("active-game", "active")) as
-      SavedGameRecord | undefined;
-    return record ? record.state : null;
+    const all = (await db.getAll(STORE)) as StoredGame[];
+    const cutoff = Date.now() - RESUME_MAX_AGE_MS;
+    const candidates = all
+      .filter((g) => !g.completed && g.updatedAt >= cutoff && g.pgn)
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+    return candidates[0] ?? null;
   } catch {
     return null;
   }
 }
 
-export async function clearActiveGame(): Promise<void> {
-  const db = await getDB();
-  if (!db) return;
-
-  try {
-    await db.delete("active-game", "active");
-  } catch {
-    // Storage unavailable
+export async function deleteGame(id: string): Promise<void> {
+  if (pendingStateToSave?.id === id) {
+    pendingStateToSave = null;
+    if (saveTimer !== null) {
+      clearTimeout(saveTimer);
+      saveTimer = null;
+    }
   }
-}
 
-export async function archiveGame(state: GameState): Promise<void> {
   const db = await getDB();
   if (!db) return;
-
   try {
-    const record: SavedGameRecord = {
-      id: state.id || `game-${Date.now()}`,
-      state,
-      updatedAt: Date.now(),
-    };
-    await db.put("game-history", record);
-    await clearActiveGame();
+    await db.delete(STORE, id);
   } catch {
-    // Storage unavailable
+    // Storage unavailable.
   }
 }
 

@@ -5,17 +5,24 @@ import {
   positionAfter,
   positionFromFen,
   isLegal,
-  toSan,
   outcome,
   toUci,
   fromUci,
-  toFen,
+  buildHistoryEntry,
 } from "../core/rules";
+import { RestoredGame } from "../core/pgn";
 import { generatePremoves, hypotheticalPosition } from "../core/premove";
 import { getDifficulty } from "../core/difficulty";
 import { audioEngine } from "../audio";
 import { getConfig } from "../config";
 import { THEMES, applyThemeToCss } from "../render/voxel/palette";
+
+function newGameId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `game-${crypto.randomUUID()}`;
+  }
+  return `game-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+}
 
 export class GameController {
   private store: Store;
@@ -86,6 +93,9 @@ export class GameController {
         : ({ kind: "engine-thinking", startedAt: Date.now() } as const);
 
     this.store.setState(() => ({
+      // A new id, so this game is a new record rather than an overwrite of the
+      // one the player may still want to come back to.
+      id: newGameId(),
       initialFen,
       humanColor,
       difficulty,
@@ -100,6 +110,48 @@ export class GameController {
     if (humanColor === "black") {
       this.startEngineSearch();
     }
+  }
+
+  /**
+   * Puts a stored game back on the board. The caller has already turned the
+   * PGN into history — this decides whose move it is and restarts the engine if
+   * the answer is the engine's.
+   *
+   * A resumed game comes back without a clock. PGN carries no time, and
+   * handing back a full initial allowance would be a cheat.
+   */
+  resumeGame(
+    restored: RestoredGame,
+    meta: { id: string; humanColor: Color; difficulty: number },
+  ): void {
+    this.cancelEngineSearch();
+
+    const posNow = positionAfter(
+      restored.initialFen,
+      restored.history.map((h) => h.move),
+    );
+    const finished = outcome(posNow, restored.history, restored.initialFen);
+    const engineToMove = !finished && posNow.turn !== meta.humanColor;
+
+    this.store.setState(() => ({
+      id: meta.id,
+      initialFen: restored.initialFen,
+      humanColor: meta.humanColor,
+      difficulty: meta.difficulty,
+      history: restored.history,
+      cursor: restored.history.length,
+      status: finished
+        ? { kind: "over", result: finished }
+        : engineToMove
+          ? { kind: "engine-thinking", startedAt: Date.now() }
+          : { kind: "human-turn" },
+      premoves: [],
+      selectedSquare: null,
+      clock: undefined,
+      startedAt: restored.startedAt,
+    }));
+
+    if (engineToMove) this.startEngineSearch();
   }
 
   makeMove(move: Move): boolean {
@@ -157,27 +209,8 @@ export class GameController {
       return false;
     }
 
-    const sanStr = toSan(currentPos, move);
-    const posAfter = positionAfter(state.initialFen, [
-      ...state.history.map((h) => h.move),
-      move,
-    ]);
-    const fenAfterStr = toFen(posAfter);
-    const isCheck = posAfter.isCheck();
-    const isMate = posAfter.isEnd() && isCheck;
-    const captured = currentPos.board.get(move.to)?.role;
-
-    const newHistory = [
-      ...state.history,
-      {
-        move,
-        san: sanStr,
-        fenAfter: fenAfterStr,
-        captured,
-        isCheck,
-        isMate,
-      },
-    ];
+    const { entry, posAfter } = buildHistoryEntry(currentPos, move);
+    const newHistory = [...state.history, entry];
 
     const gameOutcome = outcome(posAfter, newHistory, state.initialFen);
 
@@ -197,8 +230,8 @@ export class GameController {
       return true;
     }
 
-    if (isCheck) audioEngine.playSound("check");
-    else if (captured) audioEngine.playSound("capture");
+    if (entry.isCheck) audioEngine.playSound("check");
+    else if (entry.captured) audioEngine.playSound("capture");
     else audioEngine.playSound("move");
 
     this.store.setState(() => ({
@@ -336,27 +369,8 @@ export class GameController {
       return;
     }
 
-    const sanStr = toSan(currentPos, move);
-    const posAfter = positionAfter(state.initialFen, [
-      ...state.history.map((h) => h.move),
-      move,
-    ]);
-    const fenAfterStr = toFen(posAfter);
-    const isCheck = posAfter.isCheck();
-    const isMate = posAfter.isEnd() && isCheck;
-    const captured = currentPos.board.get(move.to)?.role;
-
-    const newHistory = [
-      ...state.history,
-      {
-        move,
-        san: sanStr,
-        fenAfter: fenAfterStr,
-        captured,
-        isCheck,
-        isMate,
-      },
-    ];
+    const { entry, posAfter } = buildHistoryEntry(currentPos, move);
+    const newHistory = [...state.history, entry];
 
     const gameOutcome = outcome(posAfter, newHistory, state.initialFen);
 
@@ -376,8 +390,8 @@ export class GameController {
       return;
     }
 
-    if (isCheck) audioEngine.playSound("check");
-    else if (captured) audioEngine.playSound("capture");
+    if (entry.isCheck) audioEngine.playSound("check");
+    else if (entry.captured) audioEngine.playSound("capture");
     else audioEngine.playSound("move");
 
     // Drain premove queue
@@ -385,27 +399,9 @@ export class GameController {
       const [headPremove, ...tailPremoves] = state.premoves;
       if (headPremove && isLegal(posAfter, headPremove)) {
         // Head premove is legal: apply it
-        const premoveSan = toSan(posAfter, headPremove);
-        const posAfterPremove = positionAfter(state.initialFen, [
-          ...newHistory.map((h) => h.move),
-          headPremove,
-        ]);
-        const premoveFenAfter = toFen(posAfterPremove);
-        const premoveCheck = posAfterPremove.isCheck();
-        const premoveMate = posAfterPremove.isEnd() && premoveCheck;
-        const premoveCaptured = posAfter.board.get(headPremove.to)?.role;
-
-        const historyWithPremove = [
-          ...newHistory,
-          {
-            move: headPremove,
-            san: premoveSan,
-            fenAfter: premoveFenAfter,
-            captured: premoveCaptured,
-            isCheck: premoveCheck,
-            isMate: premoveMate,
-          },
-        ];
+        const { entry: premoveEntry, posAfter: posAfterPremove } =
+          buildHistoryEntry(posAfter, headPremove);
+        const historyWithPremove = [...newHistory, premoveEntry];
 
         const premoveOutcome = outcome(
           posAfterPremove,
@@ -432,8 +428,8 @@ export class GameController {
           return;
         }
 
-        if (premoveCheck) audioEngine.playSound("check");
-        else if (premoveCaptured) audioEngine.playSound("capture");
+        if (premoveEntry.isCheck) audioEngine.playSound("check");
+        else if (premoveEntry.captured) audioEngine.playSound("capture");
         else audioEngine.playSound("move");
 
         this.store.setState(() => ({

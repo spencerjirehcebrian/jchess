@@ -3,10 +3,11 @@ import { useGameStore, initialGameState } from "../../src/store";
 import { GameController } from "../../src/store/controller";
 import { createStockfishEngine } from "../../src/engine/stockfish";
 import {
-  saveActiveGame,
-  loadActiveGame,
-  clearActiveGame,
+  saveGame,
+  loadResumableGame,
+  deleteGame,
 } from "../../src/storage";
+import { restoreFromPgn } from "../../src/core/pgn";
 import { nameToSquare } from "../../src/core/types";
 
 class MockEngineWorker {
@@ -109,10 +110,12 @@ describe("Game Integration Tests", () => {
     fakeEngine.dispose();
   });
 
-  it("persists and loads active game state", async () => {
+  it("stores a game as PGN and replays it back into history", async () => {
     const state = useGameStore.getState();
-    const updatedState = {
+    const played = {
       ...state,
+      id: "game-persistence-test",
+      status: { kind: "human-turn" } as const,
       history: [
         {
           move: { from: 12, to: 28 },
@@ -125,16 +128,22 @@ describe("Game Integration Tests", () => {
       ],
     };
 
-    await saveActiveGame(updatedState);
-    // Wait for debounce timer
+    saveGame(played);
+    // Wait for the debounce timer.
     await new Promise((r) => setTimeout(r, 600));
 
-    const loaded = await loadActiveGame();
-    if (loaded) {
-      expect(loaded.history.length).toBe(1);
-      expect(loaded.history[0]?.san).toBe("e4");
-    }
+    const record = await loadResumableGame();
+    // jsdom has no IndexedDB; the app runs in memory there and offers nothing.
+    if (record) {
+      expect(record.completed).toBe(false);
+      expect(record.humanColor).toBe(played.humanColor);
 
-    await clearActiveGame();
+      const restored = restoreFromPgn(record.pgn);
+      expect(restored).not.toBeNull();
+      expect(restored!.history.length).toBe(1);
+      expect(restored!.history[0]?.san).toBe("e4");
+
+      await deleteGame(record.id);
+    }
   });
 });

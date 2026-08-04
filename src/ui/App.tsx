@@ -1,8 +1,15 @@
-import { useState, useEffect } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { useGameStore } from "../store";
 import { GameController } from "../store/controller";
 import { createStockfishEngine } from "../engine/stockfish";
 import { isSearchCancelled } from "../engine/types";
+import { restoreFromPgn } from "../core/pgn";
+import {
+  StoredGame,
+  deleteGame,
+  loadResumableGame,
+  saveGame,
+} from "../storage";
 import { THEMES, applyThemeToCss } from "../render/voxel/palette";
 
 import { BoardCanvas } from "./BoardCanvas";
@@ -14,11 +21,13 @@ import { PlayerRow } from "./PlayerRow";
 import { SystemLine } from "./SystemLine";
 import { ResultBanner } from "./ResultBanner";
 import { SettingsPanel } from "./SettingsPanel";
+import { ResumePrompt } from "./ResumePrompt";
 
 export function App() {
   const state = useGameStore();
   const [controller, setController] = useState<GameController | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [resumable, setResumable] = useState<StoredGame | null>(null);
 
   useEffect(() => {
     const activeTheme = state.theme ? THEMES[state.theme] : THEMES.lacquer;
@@ -40,10 +49,51 @@ export function App() {
         console.error("Engine init error:", err);
       });
 
+    // Asked once, at boot. A fresh game starts underneath either way, so the
+    // board is never empty while the question is on screen — and if there is
+    // nothing to resume, or no storage at all, nothing appears.
+    void loadResumableGame().then((game) => {
+      if (game && restoreFromPgn(game.pgn)) setResumable(game);
+    });
+
     return () => {
       engine.dispose();
     };
   }, []);
+
+  /*
+   * Persistence subscribes outside React and writes on every store change; the
+   * storage layer owns the debounce, so this is never on the critical path of
+   * applying a move. Games in progress and finished games are both written —
+   * the record's `completed` flag is what decides whether it is ever offered
+   * back — but a game with no moves in it is not worth a record.
+   */
+  useEffect(() => {
+    return useGameStore.subscribe((s) => {
+      if (s.history.length > 0) saveGame(s);
+    });
+  }, []);
+
+  const resumeStoredGame = useCallback(() => {
+    const game = resumable;
+    setResumable(null);
+    if (!game || !controller) return;
+
+    const restored = restoreFromPgn(game.pgn);
+    if (!restored) return;
+
+    controller.resumeGame(restored, {
+      id: game.id,
+      humanColor: game.humanColor,
+      difficulty: game.difficulty,
+    });
+  }, [resumable, controller]);
+
+  const discardStoredGame = useCallback(() => {
+    const game = resumable;
+    setResumable(null);
+    if (game) void deleteGame(game.id);
+  }, [resumable]);
 
   return (
     <div
@@ -167,6 +217,14 @@ export function App() {
         <SettingsPanel
           controller={controller}
           onClose={() => setIsSettingsOpen(false)}
+        />
+      )}
+
+      {resumable && (
+        <ResumePrompt
+          game={resumable}
+          onResume={resumeStoredGame}
+          onDiscard={discardStoredGame}
         />
       )}
     </div>

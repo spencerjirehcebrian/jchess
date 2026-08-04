@@ -1,8 +1,24 @@
-import { GameState, Result, START_FEN } from "./types";
+import { GameState, HistoryEntry, Result, START_FEN } from "./types";
+import { buildHistoryEntry, fromSan, positionFromFen } from "./rules";
 
 export interface ParsedPgn {
   tags: Record<string, string>;
   moves: string[];
+}
+
+export interface RestoredGame {
+  initialFen: string;
+  history: HistoryEntry[];
+  startedAt: number;
+}
+
+/** `YYYY.MM.DD` back to milliseconds, so a resumed game keeps its own date. */
+function parsePgnDate(value: string | undefined): number | null {
+  if (!value) return null;
+  const m = value.match(/^(\d{4})\.(\d{2})\.(\d{2})$/);
+  if (!m) return null;
+  const ms = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return Number.isNaN(ms) ? null : ms;
 }
 
 export function formatResult(result: Result | null): string {
@@ -100,4 +116,43 @@ export function parsePgn(pgnText: string): ParsedPgn {
   }
 
   return { tags, moves };
+}
+
+/**
+ * Replays a stored PGN back into the history the app runs on.
+ *
+ * PGN is the storage format precisely because it is not the internal shape: it
+ * survives refactors of `GameState` and is a file a person can open. The cost
+ * is that everything derived — the FEN after each ply, what was captured,
+ * check and mate — has to be recomputed, which is what `buildHistoryEntry`
+ * does for live moves too.
+ *
+ * Returns null if any move fails to parse. A half-restored game is worse than
+ * an offer to resume that quietly does not appear.
+ */
+export function restoreFromPgn(pgnText: string): RestoredGame | null {
+  const { tags, moves } = parsePgn(pgnText);
+  const initialFen = tags["FEN"] ?? START_FEN;
+
+  let pos;
+  try {
+    pos = positionFromFen(initialFen);
+  } catch {
+    return null;
+  }
+
+  const history: HistoryEntry[] = [];
+  for (const sanStr of moves) {
+    const move = fromSan(pos, sanStr);
+    if (!move) return null;
+    const { entry, posAfter } = buildHistoryEntry(pos, move);
+    history.push(entry);
+    pos = posAfter;
+  }
+
+  return {
+    initialFen,
+    history,
+    startedAt: parsePgnDate(tags["Date"]) ?? Date.now(),
+  };
 }

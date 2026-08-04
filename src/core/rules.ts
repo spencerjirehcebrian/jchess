@@ -174,6 +174,39 @@ export function toFen(pos: Position): string {
   return fen.makeFen(pos.toSetup());
 }
 
+/**
+ * Everything the history records about a move, and the position it produced.
+ *
+ * The SAN has to be taken before the move is played and the check flags after,
+ * so this is the one order that is correct. Three callers used to write it out
+ * by hand — the human move, the engine's reply, and the premove drain — each
+ * replaying the whole game from the initial FEN to get the position after.
+ */
+export function buildHistoryEntry(
+  pos: Position,
+  move: Move,
+): { entry: HistoryEntry; posAfter: Position } {
+  const sanStr = toSan(pos, move);
+  const captured = pos.board.get(move.to)?.role;
+
+  const posAfter = pos.clone();
+  posAfter.play(toChessopsMove(move));
+
+  const check = posAfter.isCheck();
+
+  return {
+    entry: {
+      move,
+      san: sanStr,
+      fenAfter: toFen(posAfter),
+      captured,
+      isCheck: check,
+      isMate: posAfter.isEnd() && check,
+    },
+    posAfter,
+  };
+}
+
 export function isCheck(pos: Position): boolean {
   return pos.isCheck();
 }

@@ -68,7 +68,7 @@ export interface GameState {
   premoves: Move[];
   selectedSquare: Square | null;
   boardFlipped: boolean;
-  clock?: ClockState;
+  clock?: ClockState | undefined;
   startedAt: number;
 }
 

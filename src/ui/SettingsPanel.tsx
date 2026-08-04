@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import { useGameStore } from "../store";
 import { GameController } from "../store/controller";
+import { isStorageAvailable } from "../storage";
 import { THEMES } from "../render/voxel/palette";
 import { BoardSizeControls } from "./BoardSizeControls";
 
@@ -11,6 +13,11 @@ interface SettingsPanelProps {
 export function SettingsPanel({ controller, onClose }: SettingsPanelProps) {
   const currentTheme = useGameStore((s) => s.theme) ?? "lacquer";
   const currentMaxPremoves = useGameStore((s) => s.maxPremoves) ?? 3;
+  const [storageReady, setStorageReady] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    void isStorageAvailable().then(setStorageReady);
+  }, []);
 
   const optionStyle: React.CSSProperties = {
     background: "var(--surface-raised)",
@@ -151,6 +158,19 @@ export function SettingsPanel({ controller, onClose }: SettingsPanelProps) {
               color: "var(--text-faint)",
             }}
           >
+            {/*
+              Stated here rather than raised as an error on boot. Private
+              browsing and an exhausted quota are both normal, the game plays
+              exactly the same, and the only thing the player loses is the
+              offer to come back to it (docs/04-game-core.md).
+            */}
+            {storageReady === false && (
+              <p style={{ marginBottom: "var(--sp-2)" }}>
+                Games are not being saved — this browser is not storing data for
+                the site. Play continues normally; you will not be offered a
+                resume next time.
+              </p>
+            )}
             <p>jchess v1.0.0</p>
             <p style={{ marginTop: "var(--sp-1)" }}>
               Stockfish engine engine GPL-3.0.{" "}

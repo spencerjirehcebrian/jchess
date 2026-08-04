@@ -89,6 +89,6 @@ than `origin`.
 
 `docs/` is the pre-implementation spec, written as instructions to the implementing agent. It remains the reference for intent, but the tree has since diverged: there is no `src/input/` (pointer handling lives in `BoardCanvas.tsx`, SAN entry in `NotationInput.tsx`), persistence is `src/storage/index.ts` rather than `src/persistence/db.ts`, animation is `src/render/animation/{engine,debris,shake}.ts`, and `src/audio/` is undocumented there. Read the docs for rules and invariants, the code for structure.
 
-`src/storage/` is implemented and tested but not yet imported by `App.tsx` — persistence and resume are not wired up.
+`src/storage/` stores games as PGN, one record per game, and `App.tsx` offers the most recent unfinished one on boot. It is deliberately the only part of the app that may fail silently: no IndexedDB means no records, no resume prompt, a note in settings, and otherwise an identical game.
 
 Per `docs/00-overview.md`: record any new dependency or any choice the docs left open in `DECISIONS.md`.
