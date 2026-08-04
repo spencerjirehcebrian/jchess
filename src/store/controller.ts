@@ -1,4 +1,5 @@
 import { Store } from "./index";
+import { useTelemetry } from "./telemetry";
 import { Move, Color, AppError, ClockState, GameState } from "../core/types";
 import {
   DEFAULT_TIME_CONTROL_ID,
@@ -76,6 +77,10 @@ export class GameController {
   private cancelEngineSearch() {
     this.searchEpoch++;
     this.engine?.stop();
+    // The abandoned search's own `finally` sees a stale epoch and deliberately
+    // leaves the store alone, so the indicator has to be put out from here or
+    // it stays lit on a search nobody is waiting for.
+    useTelemetry.getState().endSearch();
   }
 
   /** Fire-and-forget entry point; triggerEngineSearch never rejects. */
@@ -385,11 +390,31 @@ export class GameController {
       let state = this.state;
       if (state.status.kind !== "engine-thinking") return;
 
+      /*
+       * Whose score the engine is about to report. UCI scores are relative to
+       * the side to move, and the engine only searches on its own turn, so this
+       * is the colour the telemetry store needs in order to normalise them to
+       * white-positive. Captured before the await, because by the time progress
+       * arrives the board may already be somewhere else.
+       */
+      const engineColor = opposite(state.humanColor);
+      const telemetry = useTelemetry.getState();
+      telemetry.beginSearch();
+
       const startTime = performance.now();
       const searchResult = await engine.search(
         state.initialFen,
         state.history.map((h) => toUci(h.move)),
         level.budget,
+        {
+          onProgress: (progress) => {
+            // A superseded search keeps reporting until the engine actually
+            // stops; its depth must not drive the indicator for the search that
+            // replaced it.
+            if (!isCurrent()) return;
+            useTelemetry.getState().report(progress, engineColor);
+          },
+        },
       );
       if (!isCurrent()) return;
 
@@ -452,6 +477,10 @@ export class GameController {
       this.store.setState(() => ({
         status: { kind: "error", error: appErr },
       }));
+    } finally {
+      // Only if this search is still the current one. A superseded search
+      // settling later must not report the *replacement* search as finished.
+      if (isCurrent()) useTelemetry.getState().endSearch();
     }
   }
 

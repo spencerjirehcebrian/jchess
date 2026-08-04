@@ -1,4 +1,5 @@
 import { useGameStore } from "../store";
+import { searchCells, useTelemetry } from "../store/telemetry";
 import { Role, Color } from "../core/types";
 import { DIFFICULTY_LEVELS } from "../core/difficulty";
 import { THEMES } from "../render/voxel/palette";
@@ -6,25 +7,54 @@ import { pieceSpriteUrl } from "../render/voxel/sprite";
 import { ORDER, opposite, useMaterialBalance, RoleCounts } from "./material";
 import { Clock } from "./Clock";
 
-/** Four cells that fill as the engine searches deeper. */
-function SearchIndicator({ depth }: { depth: number }) {
-  const filled = Math.min(4, Math.max(0, Math.round(depth / 5)));
+/**
+ * How deep the engine has got: four cells and the number itself.
+ *
+ * It subscribes to the telemetry store directly rather than taking the depth as
+ * a prop, and that is the point. `PlayerRow` reads the whole game store, so a
+ * prop would drag the entire row — name, clock, trophy rack and all — through a
+ * re-render on every reading. Kept here, the ten-times-a-second feed repaints
+ * two spans.
+ *
+ * Both selectors return numbers, so zustand's identity check absorbs the rest:
+ * the cells change about four times a search and the number about once a second,
+ * however often the engine actually reports.
+ */
+function SearchIndicator() {
+  const filled = useTelemetry(searchCells);
+  const depth = useTelemetry((t) => t.depth);
+
   return (
     <span
       aria-hidden="true"
-      style={{ display: "flex", gap: "2px", alignItems: "center" }}
+      style={{ display: "flex", gap: "var(--sp-2)", alignItems: "center" }}
     >
-      {[0, 1, 2, 3].map((i) => (
-        <span
-          key={i}
-          style={{
-            width: "6px",
-            height: "6px",
-            background: i < filled ? "var(--accent)" : "var(--border-strong)",
-            transition: "background var(--dur-base) ease",
-          }}
-        />
-      ))}
+      <span style={{ display: "flex", gap: "2px", alignItems: "center" }}>
+        {[0, 1, 2, 3].map((i) => (
+          <span
+            key={i}
+            style={{
+              width: "6px",
+              height: "6px",
+              background: i < filled ? "var(--accent)" : "var(--border-strong)",
+              transition: "background var(--dur-base) ease",
+            }}
+          />
+        ))}
+      </span>
+      {/*
+        Tabular and reserved at three characters, so the row does not twitch
+        sideways each time the search reaches double digits.
+      */}
+      <span
+        style={{
+          fontVariantNumeric: "tabular-nums",
+          minWidth: "3ch",
+          color: "var(--text-faint)",
+        }}
+      >
+        {depth > 0 ? `d${depth}` : ""}
+      </span>
     </span>
   );
 }
@@ -126,11 +156,6 @@ export function PlayerRow({ side }: PlayerRowProps) {
   const isActive =
     side === "engine" ? isEngineSearching : state.status.kind === "human-turn";
 
-  const depth =
-    state.status.kind === "engine-thinking"
-      ? ((state.status as { depth?: number }).depth ?? 0)
-      : 0;
-
   let status = "";
   let statusColor = "var(--text-dim)";
 
@@ -207,9 +232,7 @@ export function PlayerRow({ side }: PlayerRowProps) {
         }}
       >
         {status}
-        {side === "engine" && isEngineSearching && (
-          <SearchIndicator depth={depth} />
-        )}
+        {side === "engine" && isEngineSearching && <SearchIndicator />}
       </span>
     </div>
   );

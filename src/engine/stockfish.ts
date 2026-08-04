@@ -195,18 +195,34 @@ export function createStockfishEngine(opts?: StockfishEngineOptions): Engine {
     if (!parsed) return;
 
     s.progressData = { ...s.progressData, ...parsed };
+
+    /*
+     * Nothing to report until a depth has actually been reached. Stockfish opens
+     * a search with lines like `info string NNUE evaluation using ...`, which
+     * carry no depth — reporting those armed the 100ms throttle with a reading
+     * of zero and then swallowed every real depth that arrived inside the
+     * window. At the lower difficulties the entire search fits in that window,
+     * so the caller saw one zero and nothing else.
+     */
+    if (s.progressData.depth === undefined) return;
+
     const now = performance.now();
     if (s.onProgress && now - s.lastProgressTime >= 100) {
       s.lastProgressTime = now;
-      s.onProgress({
-        depth: s.progressData.depth ?? 0,
-        nodes: s.progressData.nodes ?? 0,
-        nps: s.progressData.nps ?? 0,
-        scoreCp: s.progressData.scoreCp,
-        scoreMate: s.progressData.scoreMate,
-        pv: s.progressData.pv,
-      });
+      emitProgress(s);
     }
+  }
+
+  /** The current reading, unthrottled. */
+  function emitProgress(s: ActiveSearch) {
+    s.onProgress?.({
+      depth: s.progressData.depth ?? 0,
+      nodes: s.progressData.nodes ?? 0,
+      nps: s.progressData.nps ?? 0,
+      scoreCp: s.progressData.scoreCp,
+      scoreMate: s.progressData.scoreMate,
+      pv: s.progressData.pv,
+    });
   }
 
   function handleBestMove(msgText: string) {
@@ -231,6 +247,16 @@ export function createStockfishEngine(opts?: StockfishEngineOptions): Engine {
         res.depth = s.progressData.depth ?? 0;
         res.scoreCp = s.progressData.scoreCp;
         res.scoreMate = s.progressData.scoreMate;
+
+        /*
+         * One last reading before settling, exempt from the throttle. The
+         * deepest iteration is always the one that lands closest to `bestmove`,
+         * so without this flush the reading a caller is left looking at is
+         * whatever happened to fall on a throttle boundary — which for a short
+         * search is the shallowest one, or none at all.
+         */
+        if (s.progressData.depth !== undefined) emitProgress(s);
+
         settleSearch(s, { ok: true, value: res });
       }
     }
