@@ -1,5 +1,14 @@
 import { Store } from "./index";
-import { Move, Color, AppError, GameState } from "../core/types";
+import { Move, Color, AppError, ClockState, GameState } from "../core/types";
+import {
+  DEFAULT_TIME_CONTROL_ID,
+  createClock,
+  flaggedColor,
+  opposite,
+  stopClock,
+  switchTurn,
+  timeControlById,
+} from "../core/clock";
 import { Engine, isSearchCancelled } from "../engine/types";
 import {
   positionAfter,
@@ -49,6 +58,9 @@ export class GameController {
   /** Notified with the squares of a premove queue that failed to drain. */
   onPremoveFailed: ((squares: number[]) => void) | null = null;
 
+  private flagTimer: ReturnType<typeof setInterval> | null = null;
+  private readonly onVisibilityChange = () => this.checkFlag();
+
   constructor(store: Store, engine?: Engine) {
     this.store = store;
     if (engine) {
@@ -73,6 +85,88 @@ export class GameController {
     });
   }
 
+  /**
+   * Charges `plies` completed moves to the clock, alternating sides. The
+   * premove drain applies two moves in one pass, and both of them cost time.
+   */
+  private clockAfterMoves(
+    clock: ClockState | undefined,
+    plies: number,
+    now: number,
+  ): ClockState | undefined {
+    if (!clock) return undefined;
+    let next = clock;
+    for (let i = 0; i < plies; i += 1) next = switchTurn(next, now);
+    return next;
+  }
+
+  /**
+   * Flag fall is checked on a timer *and* on `visibilitychange`, because a
+   * backgrounded tab throttles its timers to roughly once a minute — so the
+   * check on the way back is often the one that catches it. Remaining time is
+   * derived from a monotonic clock that kept running the whole time, so a flag
+   * that fell while hidden falls at the right moment either way.
+   */
+  private startFlagWatch(): void {
+    this.stopFlagWatch();
+    if (typeof window === "undefined") return;
+
+    this.flagTimer = setInterval(() => this.checkFlag(), 200);
+    document.addEventListener("visibilitychange", this.onVisibilityChange);
+  }
+
+  private stopFlagWatch(): void {
+    if (this.flagTimer !== null) {
+      clearInterval(this.flagTimer);
+      this.flagTimer = null;
+    }
+    if (typeof window !== "undefined") {
+      document.removeEventListener("visibilitychange", this.onVisibilityChange);
+    }
+  }
+
+  private checkFlag(): void {
+    const state = this.state;
+    const clock = state.clock;
+
+    if (!clock || state.status.kind === "over" || state.status.kind === "error") {
+      this.stopFlagWatch();
+      return;
+    }
+
+    const now = performance.now();
+    const flagged = flaggedColor(clock, now);
+    if (!flagged) return;
+
+    this.cancelEngineSearch();
+    this.stopFlagWatch();
+
+    const winner = opposite(flagged);
+    if (winner === state.humanColor) audioEngine.playSound("victory");
+    else audioEngine.playSound("defeat");
+
+    this.store.setState(() => ({
+      clock: stopClock(clock, now),
+      status: { kind: "over", result: { winner, reason: "timeout" } },
+      premoves: [],
+      selectedSquare: null,
+    }));
+  }
+
+  /**
+   * Applies to the next new game, not this one. Changing the shape of a game
+   * while it is being played would either hand someone time they had already
+   * spent or take away time they were counting on.
+   */
+  setTimeControl(id: string): void {
+    this.store.setState(() => ({ timeControlId: timeControlById(id).id }));
+  }
+
+  /** Releases the flag-fall timer and its listener. */
+  dispose(): void {
+    this.stopFlagWatch();
+  }
+
   startNewGame(options?: {
     humanColor?: Color;
     difficulty?: number;
@@ -92,6 +186,18 @@ export class GameController {
         ? ({ kind: "human-turn" } as const)
         : ({ kind: "engine-thinking", startedAt: Date.now() } as const);
 
+    // The clock starts on whoever the FEN says is to move, which is white in
+    // every ordinary game but not in a set-up position.
+    const control = timeControlById(
+      this.state.timeControlId ??
+        (config.enableClocks ? "5+0" : DEFAULT_TIME_CONTROL_ID),
+    );
+    const clock = createClock(
+      control,
+      positionFromFen(initialFen).turn,
+      performance.now(),
+    );
+
     this.store.setState(() => ({
       // A new id, so this game is a new record rather than an overwrite of the
       // one the player may still want to come back to.
@@ -99,6 +205,8 @@ export class GameController {
       initialFen,
       humanColor,
       difficulty,
+      timeControlId: control.id,
+      clock,
       history: [],
       cursor: 0,
       status: newStatus,
@@ -106,6 +214,9 @@ export class GameController {
       selectedSquare: null,
       startedAt: Date.now(),
     }));
+
+    if (clock) this.startFlagWatch();
+    else this.stopFlagWatch();
 
     if (humanColor === "black") {
       this.startEngineSearch();
@@ -211,6 +322,7 @@ export class GameController {
 
     const { entry, posAfter } = buildHistoryEntry(currentPos, move);
     const newHistory = [...state.history, entry];
+    const clockNow = performance.now();
 
     const gameOutcome = outcome(posAfter, newHistory, state.initialFen);
 
@@ -221,11 +333,13 @@ export class GameController {
         audioEngine.playSound("defeat");
       else audioEngine.playSound("draw");
 
+      this.stopFlagWatch();
       this.store.setState(() => ({
         history: newHistory,
         cursor: newHistory.length,
         status: { kind: "over", result: gameOutcome },
         selectedSquare: null,
+        clock: state.clock ? stopClock(state.clock, clockNow) : undefined,
       }));
       return true;
     }
@@ -239,6 +353,9 @@ export class GameController {
       cursor: newHistory.length,
       status: { kind: "engine-thinking", startedAt: Date.now() },
       selectedSquare: null,
+      // The engine's thinking time, artificial delay included, comes off the
+      // engine's clock. It should: it is the engine's turn.
+      clock: this.clockAfterMoves(state.clock, 1, clockNow),
     }));
 
     this.startEngineSearch();
@@ -371,6 +488,7 @@ export class GameController {
 
     const { entry, posAfter } = buildHistoryEntry(currentPos, move);
     const newHistory = [...state.history, entry];
+    const clockNow = performance.now();
 
     const gameOutcome = outcome(posAfter, newHistory, state.initialFen);
 
@@ -381,11 +499,13 @@ export class GameController {
         audioEngine.playSound("defeat");
       else audioEngine.playSound("draw");
 
+      this.stopFlagWatch();
       this.store.setState(() => ({
         history: newHistory,
         cursor: newHistory.length,
         status: { kind: "over", result: gameOutcome },
         premoves: [],
+        clock: state.clock ? stopClock(state.clock, clockNow) : undefined,
       }));
       return;
     }
@@ -419,11 +539,15 @@ export class GameController {
             audioEngine.playSound("defeat");
           else audioEngine.playSound("draw");
 
+          this.stopFlagWatch();
           this.store.setState(() => ({
             history: historyWithPremove,
             cursor: historyWithPremove.length,
             status: { kind: "over", result: premoveOutcome },
             premoves: [],
+            clock: state.clock
+              ? stopClock(this.clockAfterMoves(state.clock, 1, clockNow)!, clockNow)
+              : undefined,
           }));
           return;
         }
@@ -437,6 +561,9 @@ export class GameController {
           cursor: historyWithPremove.length,
           status: { kind: "engine-thinking", startedAt: Date.now() },
           premoves: tailPremoves,
+          // Two plies landed in one pass — the engine's reply and the premove
+          // it triggered — and both of them cost their side time.
+          clock: this.clockAfterMoves(state.clock, 2, clockNow),
         }));
 
         this.startEngineSearch();
@@ -448,6 +575,7 @@ export class GameController {
           cursor: newHistory.length,
           status: { kind: "human-turn" },
           premoves: [],
+          clock: this.clockAfterMoves(state.clock, 1, clockNow),
         }));
         if (headPremove) {
           this.onPremoveFailed?.([headPremove.from, headPremove.to]);
@@ -460,6 +588,7 @@ export class GameController {
       history: newHistory,
       cursor: newHistory.length,
       status: { kind: "human-turn" },
+      clock: this.clockAfterMoves(state.clock, 1, clockNow),
     }));
   }
 
@@ -497,14 +626,32 @@ export class GameController {
 
     this.cancelEngineSearch();
 
-    const newHistory = this.state.history.slice(0, target);
+    const state = this.state;
+    const newHistory = state.history.slice(0, target);
+
+    // Time already spent stays spent. Taking a move back returns the position,
+    // not the minutes you spent choosing it — the clock simply starts running
+    // again for whoever is on move now.
+    let clock = state.clock;
+    if (clock) {
+      const now = performance.now();
+      const toMove = positionAfter(
+        state.initialFen,
+        newHistory.map((h) => h.move),
+      ).turn;
+      clock = { ...stopClock(clock, now), runningSince: now, runningFor: toMove };
+    }
+
     this.store.setState(() => ({
       history: newHistory,
       cursor: newHistory.length,
       status: { kind: "human-turn" },
       premoves: [],
       selectedSquare: null,
+      clock,
     }));
+
+    if (clock) this.startFlagWatch();
   }
 
   setCursor(index: number) {

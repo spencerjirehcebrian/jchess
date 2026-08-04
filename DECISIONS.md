@@ -46,6 +46,58 @@ Cancelling a move animation runs the same settle path as finishing one,
 including the captured and rook meshes, and fires `onComplete`. A move that is
 interrupted has still happened — the position already contains it.
 
+## PGN Is the Storage Format
+
+`src/storage/` stores each game as PGN plus a few columns (id, difficulty,
+human colour, updatedAt, completed), not as a serialized `GameState`. That is
+what `docs/04-game-core.md` asks for, and the reason holds: a stored
+`GameState` breaks silently the first time a field is added, renamed or
+retyped, whereas PGN is a format that outlives the program and that a person
+can open.
+
+The cost is that everything PGN does not carry has to be recomputed on the way
+back in — the FEN after each ply, what was captured, check and mate. That code
+already had to exist for live moves, so `buildHistoryEntry` in `core/rules.ts`
+is now the single place it lives, shared by the human's move, the engine's
+reply, the premove drain, and resume.
+
+Resume is offered, never applied. An unexpected board on load is disorienting,
+and the prompt costs one click that a wrong guess would cost far more than.
+
+A resumed game comes back **without a clock**. PGN carries no time, and handing
+back a full initial allowance would be a cheat.
+
+Storage is the one part of the app allowed to fail silently. No IndexedDB means
+no records, no resume prompt, a note in settings, and an otherwise identical
+game — never an error dialog.
+
+## Clocks Are Derived, Never Decremented
+
+`ClockState` stores what each side had banked when the current turn began plus
+when that turn began; remaining time is computed from a monotonic clock on
+every read (`core/clock.ts`). Nothing counts down. A counter driven by
+`setInterval` drifts, and stops when the tab is backgrounded — which is exactly
+when a player most needs their flag to have fallen. The 100ms interval in
+`Clock.tsx` only decides how often to repaint.
+
+Flag fall is watched on a timer *and* on `visibilitychange`, because a hidden
+tab throttles its timers to roughly once a minute, so the check on the way back
+is often the one that catches it. Either path reads the same derived value, so
+the flag falls at the right moment regardless.
+
+Three choices the docs left open:
+
+- **Presets are `off`, `3+2`, `5+0`, `10+0`**, defaulting to off. Clocks were
+  spec'd optional and off by default (`RuntimeConfig.enableClocks`); a settings
+  picker goes beyond that, on the grounds that a runtime flag nobody can reach
+  is not a feature.
+- **A change applies to the next new game, and the panel says so.** Rewriting a
+  running clock would either hand back time already spent or take away time
+  someone was counting on. Saying it is better than disabling the control and
+  leaving the player to guess why.
+- **A takeback does not refund time.** It returns the position, not the minutes
+  spent choosing the move; the clock simply starts again for whoever is on move.
+
 ## Two Typefaces
 
 Archivo names things (wordmark, players, and every control, set condensed and

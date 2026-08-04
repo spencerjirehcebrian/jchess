@@ -57,6 +57,7 @@ export function App() {
     });
 
     return () => {
+      ctrl.dispose();
       engine.dispose();
     };
   }, []);

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Color } from "../core/types";
+import { remainingFor } from "../core/clock";
 import { useGameStore } from "../store";
 
 interface ClockProps {
@@ -11,9 +12,9 @@ interface ClockProps {
  * is, so the label and frame the standalone widget used to carry would be
  * saying it twice.
  *
- * Renders nothing until something drives `state.clock`. No time control is
- * implemented yet — the slot exists so one can be added without moving the
- * layout around it.
+ * Renders nothing when the game has no time control. The interval only decides
+ * how often to repaint — the value is derived from a monotonic clock on every
+ * read, so it neither drifts nor stalls when the tab is backgrounded.
  */
 export function Clock({ color }: ClockProps) {
   const clockState = useGameStore((s) => s.clock);
@@ -24,14 +25,8 @@ export function Clock({ color }: ClockProps) {
   useEffect(() => {
     if (!clockState) return;
 
-    const tick = () => {
-      let remaining = clockState.remaining[color];
-      if (clockState.runningFor === color && clockState.runningSince !== null) {
-        const elapsed = performance.now() - clockState.runningSince;
-        remaining = Math.max(0, remaining - elapsed);
-      }
-      setTimeMs(remaining);
-    };
+    const tick = () =>
+      setTimeMs(remainingFor(clockState, color, performance.now()));
 
     tick();
     const interval = setInterval(tick, 100);

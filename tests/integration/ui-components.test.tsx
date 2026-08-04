@@ -137,6 +137,15 @@ describe('UI Component Integration Tests', () => {
     fireEvent.change(themeSelect, { target: { value: 'forest' } })
     expect(useGameStore.getState().theme).toBe('forest')
 
+    // Choosing a time control records the choice but must not start a clock
+    // in the game already being played.
+    const clockBefore = useGameStore.getState().clock
+    const timeSelect = screen.getByLabelText('Time control') as HTMLSelectElement
+    fireEvent.change(timeSelect, { target: { value: '3+2' } })
+    expect(useGameStore.getState().timeControlId).toBe('3+2')
+    expect(useGameStore.getState().clock).toBe(clockBefore)
+    expect(screen.getByText(/Starts with your next new game/)).toBeTruthy()
+
     const closeBtn = screen.getByText('Close')
     fireEvent.click(closeBtn)
     expect(closed).toBe(true)

@@ -146,6 +146,68 @@ describe("GameController", () => {
     expect(store.status.kind).toBe("human-turn");
   });
 
+  describe("time control", () => {
+    const makeStore = () => {
+      const store = {
+        ...initialGameState,
+        setState: (fn: any) => Object.assign(store, fn(store)),
+      };
+      return store;
+    };
+
+    it("starts no clock by default", () => {
+      const store = makeStore();
+      const controller = new GameController(store as any);
+      controller.startNewGame();
+
+      expect(store.clock).toBeUndefined();
+      controller.dispose();
+    });
+
+    it("charges the mover, and keeps the choice across new games", () => {
+      const store = makeStore();
+      const controller = new GameController(store as any);
+
+      controller.setTimeControl("3+2");
+      controller.startNewGame();
+      expect(store.clock?.runningFor).toBe("white");
+
+      controller.makeMove({ from: 12, to: 28 }); // e4
+      expect(store.clock?.runningFor).toBe("black");
+      // Increment credited on completion, so white is up on the initial 180s
+      // minus the handful of milliseconds the move actually took.
+      expect(store.clock!.remaining.white).toBeGreaterThan(181_000);
+      expect(store.clock!.remaining.black).toBe(180_000);
+
+      controller.startNewGame();
+      expect(store.timeControlId).toBe("3+2");
+      expect(store.clock?.remaining.white).toBe(180_000);
+      controller.dispose();
+    });
+
+    it("ends the game on time when a flag falls", async () => {
+      const store = makeStore();
+      const controller = new GameController(store as any);
+
+      controller.setTimeControl("3+2");
+      controller.startNewGame();
+
+      // Wind white's clock down to nothing without waiting three minutes.
+      store.clock = { ...store.clock!, remaining: { white: 20, black: 180_000 } };
+
+      await new Promise((r) => setTimeout(r, 350));
+
+      expect(store.status.kind).toBe("over");
+      expect((store.status as any).result).toEqual({
+        winner: "black",
+        reason: "timeout",
+      });
+      // The clock is frozen, not left ticking behind the result banner.
+      expect(store.clock?.runningFor).toBeNull();
+      controller.dispose();
+    });
+  });
+
   it("updates boardSize via setBoardSize", () => {
     const store = {
       ...initialGameState,

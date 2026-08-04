@@ -49,7 +49,9 @@ export type GameStatus =
 export interface ClockState {
   initialMs: number;
   incrementMs: number;
+  /** Banked at the start of the running side's turn, not live. */
   remaining: Record<Color, number>;
+  /** `performance.now()` when the current turn started. */
   runningSince: number | null;
   runningFor: Color | null;
 }
@@ -68,6 +70,11 @@ export interface GameState {
   premoves: Move[];
   selectedSquare: Square | null;
   boardFlipped: boolean;
+  /**
+   * The chosen time control, which outlives any one game — `clock` is
+   * undefined whenever it is "off", so the choice cannot live there.
+   */
+  timeControlId?: string | undefined;
   clock?: ClockState | undefined;
   startedAt: number;
 }
