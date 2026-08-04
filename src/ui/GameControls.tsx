@@ -15,11 +15,18 @@ export function GameControls({
   const takebackDisabled = !controller || !controller.canTakeback();
 
   return (
+    /*
+      A keypad, not a button group. The keys and the deck are one shot of
+      plastic and therefore one colour, so what separates a key from the panel
+      is not a difference in value — it is the dark moulded gap the keys sit in.
+      That gap is also what carries the 3:1 non-text contrast floor, which no
+      amount of tinting the deck could do without dragging the inks under 4.5:1.
+     */
     <div
+      className="vx-keyplate"
       style={{
         display: "grid",
         gridTemplateColumns: "1fr 1fr",
-        gap: "var(--sp-2)",
       }}
     >
       <button

@@ -5,23 +5,61 @@ export interface Palette {
   detail: string; // 'o'
 }
 
+/**
+ * Three families, and they must not be mixed up, because they are seen against
+ * three different backgrounds.
+ *
+ *  - The housing inks are dark, and are read against pale moulded plastic.
+ *  - The board signals are bright, and are read against the dark room.
+ *  - The display levels are emitted, and are read against near-black glass.
+ *
+ * The split exists because `accent` used to do the first two jobs at once: it
+ * was the gold on the board's last-move highlight *and* the accent colour of
+ * the DOM. Once the chrome became a pale housing those requirements inverted —
+ * gold is 1.1:1 on the deck and invisible — so they are now separate fields.
+ */
 export interface ThemeTokens {
+  /** The room the board sits in. Stays dark; the housing is painted over it. */
   bg: string;
+
+  // --- Housing: moulded ABS, and the inks printed on it -------------------
+  /** A slot moulded into the housing. */
   surface: string;
+  /** The material itself. Every --voxel-* value is derived from this. */
   surfaceRaised: string;
   border: string;
   borderStrong: string;
   text: string;
   textDim: string;
   textFaint: string;
+  /** The signal ink. Dark, because the housing is pale. */
   accent: string;
+  /** A step darker again: pressed states and the focus ring. */
   accentBright: string;
+  /** A step lighter: the rule under a heading. Decorative, so 3:1 not 4.5:1. */
   accentDim: string;
-  premove: string;
-  premoveDim: string;
   warning: string;
   error: string;
   success: string;
+
+  // --- Board: read against the dark room, so these stay bright -------------
+  /** Last move, selection, legal destinations. Consumed by OverlayManager. */
+  boardAccent: string;
+  /** The drop-target outline. Consumed by OverlayManager. */
+  boardAccentBright: string;
+  /** Queued premove destinations. Board only. */
+  premove: string;
+  premoveDim: string;
+
+  // --- Display -------------------------------------------------------------
+  /**
+   * A lit pixel. The rest of the LCD ramp is derived from it — see LCD_SHADING
+   * — because a display is one emitter at several strengths, not several
+   * independently chosen colours.
+   */
+  lcdOn: string;
+  /** The one hue the display is allowed besides its own: an alert segment. */
+  lcdAlert: string;
 }
 
 export interface Theme {
@@ -70,21 +108,26 @@ export const THEMES: Record<string, Theme> = {
     backgroundTop: "#1F1610",
     cssTokens: {
       bg: "#090605",
-      surface: "#17120F",
-      surfaceRaised: "#302722",
-      border: "#33291F",
-      borderStrong: "#4A3B2A",
-      text: "#EDE0C8",
-      textDim: "#B5A489",
-      textFaint: "#93836C",
-      accent: "#C9A227",
-      accentBright: "#E8C558",
-      accentDim: "#8A6B2E",
+      surface: "#867D6B",
+      surfaceRaised: "#D8CAAC",
+      border: "#B1A68D",
+      borderStrong: "#867D6B",
+      text: "#23201C",
+      textDim: "#484339",
+      textFaint: "#5A5448",
+      accent: "#8E2E1F",
+      accentBright: "#662116",
+      accentDim: "#A45D49",
       premove: "#D1462F",
       premoveDim: "#8E2E1F",
-      warning: "#D98E2B",
-      error: "#C4402B",
-      success: "#8A9A5B",
+      warning: "#744C17",
+      error: "#983221",
+      success: "#4F5934",
+      lcdOn: "#A8C08A", // phosphor green, the classic module
+      boardAccent: "#C9A227",
+      boardAccentBright: "#E8C558",
+      lcdAlert: "#E8654A",
+    
     },
   },
   oxide: {
@@ -110,21 +153,26 @@ export const THEMES: Record<string, Theme> = {
     backgroundTop: "#2A3138",
     cssTokens: {
       bg: "#0E1013",
-      surface: "#191C20",
-      surfaceRaised: "#3A4049",
-      border: "#383E46",
-      borderStrong: "#4A525C",
-      text: "#E4E7EA",
-      textDim: "#9AA3AC",
-      textFaint: "#656D76",
-      accent: "#8FA89B",
-      accentBright: "#A8C4B4",
-      accentDim: "#5E7268",
+      surface: "#7A7568",
+      surfaceRaised: "#C4BCA8",
+      border: "#A19A8A",
+      borderStrong: "#7A7568",
+      text: "#10100E",
+      textDim: "#3C3A34",
+      textFaint: "#4E4B43",
+      accent: "#674319",
+      accentBright: "#4A3012",
+      accentDim: "#7D603B",
       premove: "#B08D57",
       premoveDim: "#7A6139",
-      warning: "#C87F4A",
-      error: "#C25B54",
-      success: "#7A9E6B",
+      warning: "#684226",
+      error: "#783834",
+      success: "#3E5036",
+      lcdOn: "#9CC4B4", // a cooler green, to sit with the slate housing
+      boardAccent: "#8FA89B",
+      boardAccentBright: "#A8C4B4",
+      lcdAlert: "#E5836B",
+    
     },
   },
   monochrome: {
@@ -150,21 +198,26 @@ export const THEMES: Record<string, Theme> = {
     backgroundTop: "#242424",
     cssTokens: {
       bg: "#080808",
-      surface: "#151515",
-      surfaceRaised: "#313131",
-      border: "#333333",
-      borderStrong: "#444444",
-      text: "#F0F0F0",
-      textDim: "#A0A0A0",
-      textFaint: "#666666",
-      accent: "#999999",
-      accentBright: "#FFFFFF",
-      accentDim: "#666666",
+      surface: "#7E7E7E",
+      surfaceRaised: "#CCCCCC",
+      border: "#A7A7A7",
+      borderStrong: "#7E7E7E",
+      text: "#212121",
+      textDim: "#444444",
+      textFaint: "#555555",
+      accent: "#3A3A3A",
+      accentBright: "#2A2A2A",
+      accentDim: "#707070",
       premove: "#888888",
       premoveDim: "#555555",
-      warning: "#BBBBBB",
-      error: "#DDDDDD",
-      success: "#AAAAAA",
+      warning: "#555555",
+      error: "#4A4A4A",
+      success: "#555555",
+      lcdOn: "#D0D0D0", // neutral: a coloured readout would break the theme
+      boardAccent: "#999999",
+      boardAccentBright: "#FFFFFF",
+      lcdAlert: "#FFFFFF",
+    
     },
   },
   forest: {
@@ -190,21 +243,26 @@ export const THEMES: Record<string, Theme> = {
     backgroundTop: "#2A3B35",
     cssTokens: {
       bg: "#0D1412",
-      surface: "#18211E",
-      surfaceRaised: "#3C534C",
-      border: "#3A4E47",
-      borderStrong: "#4E685F",
-      text: "#E2E8DD",
-      textDim: "#9FB197",
-      textFaint: "#657963",
-      accent: "#87A96B",
-      accentBright: "#A3C985",
-      accentDim: "#5B7846",
+      surface: "#7A8275",
+      surfaceRaised: "#C5D1BC",
+      border: "#A2AB9A",
+      borderStrong: "#7A8275",
+      text: "#20221F",
+      textDim: "#42463F",
+      textFaint: "#52574E",
+      accent: "#7A4020",
+      accentBright: "#582E17",
+      accentDim: "#8F694C",
       premove: "#D4A373",
       premoveDim: "#966F4A",
-      warning: "#D9A05B",
-      error: "#C25B54",
-      success: "#87A96B",
+      warning: "#6D512E",
+      error: "#89403B",
+      success: "#465C36",
+      lcdOn: "#A3C985", // the theme is already green; the display agrees
+      boardAccent: "#87A96B",
+      boardAccentBright: "#A3C985",
+      lcdAlert: "#E0885F",
+    
     },
   },
 };
@@ -228,6 +286,51 @@ export const FACE_SHADING = {
  * below the shadowed bottom edge for that reading to hold.
  */
 export const WELL_SHADING = 0.45;
+
+/**
+ * Housing depths, below anything the mesher produces.
+ *
+ * `recess` is a slot moulded into the deck — the trophy tray, an unfilled
+ * detent. `seam` is the dark gap a keycap sits in, and it is the one doing real
+ * work: keys and deck are a single shot of plastic and therefore a single
+ * colour, so the boundary between a control and the panel it sits on is not a
+ * difference in value but the moulded gap around it. That gap is what clears
+ * the 3:1 non-text contrast floor, which is why it is this dark.
+ */
+export const RECESS_SHADING = 0.62;
+export const SEAM_SHADING = 0.3;
+
+/** Mixes toward a target colour. Used for the hover tint, which has to go up. */
+export function tintHex(hex: string, toward: string, amount: number): string {
+  const a = parseInt(hex.replace("#", ""), 16);
+  const b = parseInt(toward.replace("#", ""), 16);
+  const mix = (shift: number) =>
+    Math.round(
+      (((a >> shift) & 0xff) * (1 - amount) + ((b >> shift) & 0xff) * amount),
+    );
+  const r = mix(16);
+  const g = mix(8);
+  const bl = mix(0);
+  return `#${((r << 16) | (g << 8) | bl).toString(16).padStart(6, "0")}`;
+}
+
+/**
+ * The display, as one emitter at four strengths.
+ *
+ * `off` is the load-bearing one. A dot-matrix LCD does not go black between
+ * glyphs — every cell in the grid stays faintly visible whether or not it is
+ * driven, and that is what makes the module read as a physical thing that
+ * exists when the power is off rather than as a hole cut in the panel. `field`
+ * is the gutter between cells, darker still.
+ *
+ * Contrast is quoted against `off` rather than `field` throughout, because the
+ * off-cell is the lightest thing that ever sits directly under a lit glyph.
+ */
+export const LCD_SHADING = {
+  dim: 0.78,
+  off: 0.18,
+  field: 0.055,
+} as const;
 
 /** Multiplies a hex colour by a scalar, the way the mesher shades a face. */
 export function shadeHex(hex: string, factor: number): string {
@@ -262,15 +365,29 @@ export function applyThemeToCss(theme: Theme): void {
   root.style.setProperty("--error", tokens.error);
   root.style.setProperty("--success", tokens.success);
 
-  // Extrusion set: a DOM panel is a voxel seen head-on, so its front is a Z
-  // face, its top edge catches the sun, its right edge is an X face, and its
-  // bottom edge is in shadow.
+  /*
+   * The housing.
+   *
+   * You are looking down at a control deck, so the surface you see is a +Y
+   * face — the mesher's `top`, at full material value. That is why the deck is
+   * the material itself rather than a shaded fraction of it, and it is what
+   * makes the pale housing work at all: taking the front face at 0.72 instead
+   * leaves only one ink above 4.5:1 and no readable red anywhere.
+   *
+   * The lit bevel along a raised edge is then a *specular* term, not a fifth
+   * face. Moulded ABS has a hard sheen, and a specular highlight is legitimately
+   * brighter than the diffuse maximum — which is the only way an edge can still
+   * catch the light on a surface already at 1.00. It is the same boxwood the
+   * white pieces are cut from, so the machine and the men it plays with are made
+   * of one material.
+   *
+   * The mesher's sideX and bottom are used unchanged, so a keycap edge and a
+   * pawn's edge are still lit by one imaginary sun.
+   */
   const material = tokens.surfaceRaised;
-  root.style.setProperty(
-    "--voxel-face",
-    shadeHex(material, FACE_SHADING.sideZ),
-  );
-  root.style.setProperty("--voxel-top", shadeHex(material, FACE_SHADING.top));
+  const specular = theme.white.base;
+  root.style.setProperty("--voxel-face", shadeHex(material, FACE_SHADING.top));
+  root.style.setProperty("--voxel-top", specular);
   root.style.setProperty(
     "--voxel-side",
     shadeHex(material, FACE_SHADING.sideX),
@@ -279,6 +396,15 @@ export function applyThemeToCss(theme: Theme): void {
     "--voxel-under",
     shadeHex(material, FACE_SHADING.bottom),
   );
+
+  /*
+   * `--voxel-top` is the lit edge and nothing else. It used to double as a
+   * hover background, which was harmless while it was a shade of the material
+   * and is not now that it is a near-white sheen.
+   */
+  root.style.setProperty("--voxel-hover", tintHex(material, specular, 0.4));
+  root.style.setProperty("--voxel-recess", shadeHex(material, RECESS_SHADING));
+  root.style.setProperty("--voxel-seam", shadeHex(material, SEAM_SHADING));
   root.style.setProperty("--voxel-well", shadeHex(material, WELL_SHADING));
 
   // Same treatment for the accent, used by pressed and active controls.
@@ -291,4 +417,19 @@ export function applyThemeToCss(theme: Theme): void {
     "--voxel-accent-under",
     shadeHex(tokens.accent, FACE_SHADING.bottom),
   );
+
+  // The display. Not derived from the housing material: an LCD is a separate
+  // object set into a window, not a recess moulded in the same shot of plastic.
+  root.style.setProperty("--lcd-on", tokens.lcdOn);
+  root.style.setProperty("--lcd-dim", shadeHex(tokens.lcdOn, LCD_SHADING.dim));
+  root.style.setProperty("--lcd-off", shadeHex(tokens.lcdOn, LCD_SHADING.off));
+  root.style.setProperty(
+    "--lcd-field",
+    shadeHex(tokens.lcdOn, LCD_SHADING.field),
+  );
+  root.style.setProperty("--lcd-alert", tokens.lcdAlert);
+
+  // Light text knocked out of a dark accent fill — the primary keycap. It is
+  // the specular value rather than the room, which on a dark --bg was 1.9:1.
+  root.style.setProperty("--knockout", specular);
 }

@@ -44,9 +44,14 @@ export function Clock({ color }: ClockProps) {
   return (
     <span
       style={{
-        fontFamily: "var(--font-mono)",
-        fontSize: "var(--size-lg)",
-        lineHeight: 1,
+        fontFamily: "var(--font-data)",
+        /*
+         * Stays at --data while it shares a line with the 11px detail text.
+         * It goes to --data-lg when it becomes a readout of its own on the
+         * deck; at 33px it would blow out the row it currently sits in.
+         */
+        fontSize: "var(--data)",
+        lineHeight: "var(--lh-data)",
         fontVariantNumeric: "tabular-nums",
         color: isLow
           ? "var(--error)"

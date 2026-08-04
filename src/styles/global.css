@@ -13,12 +13,39 @@ body,
   width: 100%;
   height: 100%;
   overflow: hidden;
+  /*
+   * The room, not the machine. The housing is painted on the app shell inside
+   * this, so the dark room stays visible around the machine and behind the
+   * board aperture cut into it.
+   */
   background-color: var(--bg);
   color: var(--text);
-  font-family: var(--font-body);
+  font-family: var(--font-data);
   font-size: 16px;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+
+  /*
+   * Both faces are bitmap designs, so anti-aliasing is not a refinement — it is
+   * a blur applied to art that is already at its final resolution. `none` is a
+   * real WebKit value and switches AA off outright rather than changing its
+   * mode. Firefox has no equivalent and will still greyscale-blend; accept it.
+   */
+  -webkit-font-smoothing: none;
+
+  /*
+   * Neither face ships every weight, and a synthesised bold on a 1px stem is a
+   * smear. Ask for a weight that does not exist and you get the nearest real
+   * one instead of a fake.
+   */
+  font-synthesis: none;
+
+  /*
+   * Whole pixels, never unitless. `normal` resolves from font metrics to a
+   * fractional value, and the resulting half-leading offsets every baseline in
+   * the app by a fraction of a pixel — which blurs more type than any other
+   * single cause. 22px is two Departure Mono line boxes and a comfortable
+   * leading for one.
+   */
+  line-height: 22px;
 }
 
 canvas {
@@ -67,11 +94,11 @@ input::placeholder {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--surface);
+  background: var(--voxel-recess);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--border-strong);
+  background: var(--voxel-seam);
   border-radius: var(--radius);
 }
 
@@ -112,14 +139,57 @@ input::placeholder {
   );
 }
 
+/*
+ * The two lightings, hoisted so there is one of each in the codebase.
+ *
+ * Raised: the sun is above and to the left, so the top edge catches it, the
+ * right edge is a dimmer X face and the bottom edge is in shadow. Every block
+ * you press wears this.
+ *
+ * Recessed: the same sun falling into a hole, so it lands on the *inside* of
+ * the bottom edge while the top edge shades itself. Every surface you push into
+ * — the transcript, the notation field, the trophy tray — wears this.
+ *
+ * They are custom properties rather than only classes because two of the users
+ * compose a focus ring onto the front of the list at runtime, and an inline
+ * box-shadow would otherwise overwrite the class outright.
+ */
+:root {
+  --vx-raised-shadow:
+    inset 0 2px 0 0 var(--voxel-top), inset -2px 0 0 0 var(--voxel-side),
+    inset 0 -2px 0 0 var(--voxel-under);
+
+  --vx-recess-shadow:
+    inset 0 2px 0 0 var(--voxel-under), inset 2px 0 0 0 var(--voxel-under),
+    inset 0 -2px 0 0 var(--voxel-top);
+}
+
 .vx-panel {
   position: relative;
   background: var(--voxel-face);
   clip-path: var(--vx-notch);
-  box-shadow:
-    inset 0 2px 0 0 var(--voxel-top),
-    inset -2px 0 0 0 var(--voxel-side),
-    inset 0 -2px 0 0 var(--voxel-under);
+  box-shadow: var(--vx-raised-shadow);
+}
+
+/*
+ * A voxel removed rather than added: the inverse of .vx-panel.
+ *
+ * background-color, not the shorthand — .vx-recess is worn together with
+ * .vx-dither on empty trays, and the shorthand would erase the dither texture.
+ */
+.vx-recess {
+  background-color: var(--voxel-recess);
+  box-shadow: var(--vx-recess-shadow);
+}
+
+/*
+ * Lifted clear of the material instead of flush with it — the one drop shadow
+ * in the app, and it earns it: the promotion tray floats over the board rather
+ * than sitting in the chrome. Hard-edged, because nothing here casts a blur.
+ */
+.vx-lift {
+  background-color: var(--voxel-face);
+  box-shadow: 0 4px 0 0 var(--voxel-under);
 }
 
 /*
@@ -131,19 +201,23 @@ input::placeholder {
  */
 .vx-button,
 .vx-select {
-  font-family: var(--font-body);
-  font-size: var(--size-sm);
-  font-weight: 600;
-  font-stretch: 112%;
-  letter-spacing: 0.08em;
+  font-family: var(--font-legend);
+  font-size: var(--legend);
+  font-weight: 400;
+  /*
+   * Tracking in whole pixels. `em` tracking resolves to a fraction at every
+   * size we set — 0.08em at 16px is 1.28px — and lands each glyph after the
+   * first on a fractional x, which is the same blur the old 13px body size was
+   * causing. Silkscreen is a wide face with a built-in sidebearing, so it needs
+   * far less of this than a variable sans did.
+   */
+  letter-spacing: 2px;
+  line-height: 16px;
   text-transform: uppercase;
   color: var(--text-dim);
   background: var(--voxel-face);
   clip-path: var(--vx-notch);
-  box-shadow:
-    inset 0 2px 0 0 var(--voxel-top),
-    inset -2px 0 0 0 var(--voxel-side),
-    inset 0 -2px 0 0 var(--voxel-under);
+  box-shadow: var(--vx-raised-shadow);
   padding: var(--sp-2) var(--sp-3);
   min-height: var(--control-h);
   cursor: pointer;
@@ -155,7 +229,7 @@ input::placeholder {
 
 .vx-button:hover:not(:disabled),
 .vx-select:hover:not(:disabled) {
-  background: var(--voxel-top);
+  background: var(--voxel-hover);
   color: var(--text);
 }
 
@@ -216,7 +290,7 @@ input::placeholder {
   display: block;
   width: 100%;
   height: 100%;
-  background: var(--voxel-well);
+  background: var(--voxel-seam);
   box-shadow: inset 0 2px 0 0 var(--voxel-under);
   transition:
     background var(--dur-fast) ease,
@@ -243,17 +317,17 @@ input::placeholder {
 }
 
 .vx-button[data-variant="primary"] {
-  color: var(--bg);
+  color: var(--knockout);
   background: var(--voxel-accent-face);
   box-shadow:
     inset 0 2px 0 0 var(--voxel-accent-top),
     inset 0 -2px 0 0 var(--voxel-accent-under);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .vx-button[data-variant="primary"]:hover:not(:disabled) {
   background: var(--voxel-accent-top);
-  color: var(--bg);
+  color: var(--knockout);
 }
 
 /*
@@ -281,15 +355,143 @@ input::placeholder {
   outline-offset: -2px;
 }
 
-/* An eyebrow behaves like the gold inlay on the board frame: thin and rare. */
+/* ==========================================================================
+   The display
+
+   A dot-matrix LCD set into a window in the housing, and the signature element
+   of the whole machine. What sells it is that the *undriven* cells stay
+   visible: the grid is painted permanently, and lit text sits on top of it, so
+   the module reads as a physical component that exists when it is off rather
+   than as a dark rectangle that happens to contain text.
+
+   Every rule here is hard-edged on purpose. No interpolated gradient stops, no
+   blend modes, no filters, and above all no blurred text-shadow "glow" on the
+   glyphs — a bitmap face lit by a blur is exactly the thing this whole redesign
+   is removing. Emissiveness comes from saturation.
+   ========================================================================== */
+
+:root {
+  /*
+   * Cell pitch. This MUST equal the glyph pixel of the type inside the window,
+   * which for Departure Mono is font-size / 11. Pitch 2 goes with --data, pitch
+   * 3 with --data-lg. Any other pairing puts the glyph pixels out of phase with
+   * the cells and the module stops reading as a grid at all.
+   */
+  --lcd-pitch: 2px;
+}
+
+.vx-lcd {
+  font-family: var(--font-data);
+  color: var(--lcd-dim);
+  background-color: var(--lcd-off);
+  background-image:
+    repeating-linear-gradient(
+      to right,
+      var(--lcd-field) 0 1px,
+      transparent 1px var(--lcd-pitch)
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      var(--lcd-field) 0 1px,
+      transparent 1px var(--lcd-pitch)
+    );
+  /* The grid starts where the text starts, so cells stay in phase with glyphs. */
+  background-origin: padding-box;
+  box-shadow: var(--vx-recess-shadow);
+}
+
+.vx-lcd--major {
+  --lcd-pitch: 3px;
+}
+
+/*
+ * The scrollbar is global and painted in housing values; left alone it puts a
+ * bar of moulded plastic straight down the middle of the glass.
+ */
+.vx-lcd::-webkit-scrollbar-track {
+  background: var(--lcd-field);
+}
+
+.vx-lcd::-webkit-scrollbar-thumb {
+  background: var(--lcd-off);
+}
+
+.vx-lcd::-webkit-scrollbar-thumb:hover {
+  background: var(--lcd-dim);
+}
+
+.vx-lcd {
+  scrollbar-color: var(--lcd-off) var(--lcd-field);
+}
+
+/*
+ * Momentum scrolling lands scrollTop on a fraction, which renders every line in
+ * the window at a fractional y and resamples it. Snapping to the row grid keeps
+ * the transcript on whole pixels and makes it advance a line at a time, which
+ * is what a printer does anyway.
+ */
+.app-move-list {
+  scroll-snap-type: y proximity;
+}
+
+.app-move-list > * {
+  scroll-snap-align: start;
+}
+
+/*
+ * The plate the keys are set into. 2px of moulded gap on every side and between
+ * every key, so each keycap is outlined by shadow rather than by being a
+ * different colour from the deck it sits on.
+ */
+.vx-keyplate {
+  background-color: var(--voxel-seam);
+  padding: 2px;
+  gap: 2px;
+}
+
+/*
+ * A status lamp. Small, round-cornered by nothing, and either lit or not —
+ * it never animates, because a blinking lamp in an interface is a demand for
+ * attention and these only report. The label beside it always says the same
+ * thing in words, so the lamp is never the only carrier of the state.
+ */
+.vx-lamp {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  background-color: var(--voxel-seam);
+  box-shadow: inset 0 1px 0 0 var(--voxel-under);
+}
+
+.vx-lamp[data-lit="true"] {
+  background-color: var(--accent);
+  box-shadow: inset 0 -1px 0 0 var(--accent-bright);
+}
+
+/* An eyebrow is a legend printed on the panel: small, spaced, and rare. */
 .vx-label {
-  font-family: var(--font-display);
-  font-size: var(--size-xs);
-  font-weight: 600;
-  font-stretch: 115%;
-  letter-spacing: 0.14em;
+  font-family: var(--font-legend);
+  font-size: var(--legend);
+  font-weight: 400;
+  letter-spacing: 2px;
+  line-height: 16px;
   text-transform: uppercase;
   color: var(--text-faint);
+}
+
+/*
+ * The room's darkness falling across the housing.
+ *
+ * This was an ordered dither of --bg, to keep the promise that the app uses no
+ * translucency anywhere. It was the wrong promise to keep here: a stipple laid
+ * over the rendered board reads as a broken framebuffer rather than as shadow,
+ * because the board is the one surface in the app with continuous tone for it
+ * to interfere with. The no-alpha rule is about edges and shadows, which are
+ * hard because the material is; occlusion across a whole scene is genuinely a
+ * wash, and gets one.
+ */
+.vx-scrim {
+  background-color: rgb(0 0 0 / 62%);
 }
 
 /* Ordered dither, the voxel way of saying "nothing here yet". */
@@ -340,10 +542,46 @@ input::placeholder {
   min-height: 0;
 }
 
+/*
+ * The housing: the whole machine, moulded in one shot of plastic, standing on
+ * the dark room. `color-scheme: light` is scoped here rather than on :root
+ * because the document really is a dark room — but every native control now
+ * sits on pale plastic, and a dark <select> popup opening out of a cream deck
+ * reads as a hole punched through the machine.
+ */
+.app-housing {
+  color-scheme: light;
+  background-color: var(--voxel-face);
+  box-shadow: var(--vx-raised-shadow);
+}
+
+/*
+ * A window cut through the deck. The canvas paints its own dark room, so all
+ * this has to do is give the cut an edge: shadow on three sides and the lit
+ * bevel along the bottom, which is the same recess lighting the display wears.
+ */
+.app-board-aperture::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow:
+    inset 0 3px 0 0 var(--voxel-under),
+    inset 3px 0 0 0 var(--voxel-under),
+    inset -3px 0 0 0 var(--voxel-under),
+    inset 0 -3px 0 0 var(--voxel-top);
+}
+
 .app-main-layout {
   flex: 1;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 340px);
+  /*
+   * Both rail bounds are even. The transcript inside it is a `1fr 1fr` grid, so
+   * an odd rail width gives the second column a half-pixel origin and blurs
+   * every black move in the game. Wider than it was, because the transcript is
+   * now set at --data rather than 13px.
+   */
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 380px);
   gap: var(--sp-3);
   padding: var(--sp-2) var(--sp-4);
   margin: 0 auto;

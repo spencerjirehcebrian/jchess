@@ -97,13 +97,19 @@ export function App() {
   }, [resumable]);
 
   return (
+    /*
+      The machine. One moulded object standing in the dark room, rather than a
+      page with panels on it — so the housing is painted here and `--bg` is left
+      to the document underneath, where it stays the room seen around the
+      machine and through the aperture the board is set into.
+     */
     <div
+      className="app-housing"
       style={{
         width: "100vw",
         height: "100vh",
         display: "flex",
         flexDirection: "column",
-        background: "var(--bg)",
         color: "var(--text)",
       }}
     >
@@ -164,13 +170,23 @@ export function App() {
             names the instrument it sits on, and the gold rule beneath it — the
             board's inlay line, continued — still caps the column.
           */}
+          {/*
+            The model badge, moulded into the top of the deck: the machine's
+            name and what it is, the way a tabletop computer carries its model
+            number. Stays an <h1> — it is still the page's heading, and the
+            responsive spec looks for it at both viewports.
+          */}
           <h1
             style={{
-              fontFamily: "var(--font-display)",
-              fontSize: "1.0625rem",
+              display: "flex",
+              alignItems: "baseline",
+              justifyContent: "space-between",
+              gap: "var(--sp-3)",
+              fontFamily: "var(--font-legend)",
+              fontSize: "var(--legend-lg)",
               fontWeight: 700,
-              fontStretch: "120%",
-              letterSpacing: "0.22em",
+              letterSpacing: "3px",
+              lineHeight: "var(--lh-legend-lg)",
               textTransform: "uppercase",
               color: "var(--text)",
               padding: "var(--sp-3) var(--sp-3) var(--sp-2)",
@@ -179,6 +195,17 @@ export function App() {
             }}
           >
             jchess
+            <span
+              style={{
+                fontSize: "var(--legend-xs)",
+                lineHeight: "var(--lh-legend-xs)",
+                letterSpacing: "1px",
+                fontWeight: 400,
+                color: "var(--text-faint)",
+              }}
+            >
+              model 08
+            </span>
           </h1>
 
           <PlayerRow side="engine" />

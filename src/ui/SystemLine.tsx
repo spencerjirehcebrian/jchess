@@ -30,8 +30,8 @@ export function SystemLine() {
       style={{
         padding: "var(--sp-2) var(--sp-3)",
         borderTop: "1px solid var(--border)",
-        fontSize: "var(--size-sm)",
-        lineHeight: 1.35,
+        fontSize: "var(--data-xs)",
+        lineHeight: "var(--lh-data-xs)",
         color,
       }}
     >

@@ -37,19 +37,19 @@ export function MoveList({ controller }: MoveListProps) {
   return (
     <div
       ref={listRef}
-      className="app-move-list"
+      className="app-move-list vx-lcd"
       aria-label="Move list"
       // Sizing lives in .app-move-list, not here. An inline min-height cannot
       // be overridden by the mobile media query, and set to 0 it collapsed the
       // transcript to a sliver once the rail stopped dividing a fixed height.
       style={{
         overflowY: "auto",
-        fontFamily: "var(--font-mono)",
-        fontSize: "var(--size-sm)",
-        padding: "var(--sp-3)",
-        // The transcript is the well of the instrument: the two players sit on
-        // the raised faces above and below it, and the record sinks between.
-        background: "var(--voxel-well)",
+        fontFamily: "var(--font-data)",
+        fontSize: "var(--data)",
+        lineHeight: "var(--lh-data)",
+        // A multiple of the cell pitch, so the grid stays in phase with the
+        // glyphs rather than starting mid-cell.
+        padding: "12px",
         borderTop: "1px solid var(--border)",
         borderBottom: "1px solid var(--border)",
       }}
@@ -65,7 +65,7 @@ export function MoveList({ controller }: MoveListProps) {
             alignItems: "center",
             justifyContent: "center",
             gap: "var(--sp-2)",
-            color: "var(--text-faint)",
+            color: "var(--lcd-dim)",
           }}
         >
           <span
@@ -85,22 +85,29 @@ export function MoveList({ controller }: MoveListProps) {
               key={p.moveNum}
               style={{
                 display: "grid",
-                gridTemplateColumns: "40px 1fr 1fr",
+                // 56, not 40: at --data a three-character move number is 42px
+                // wide and was overrunning its column into the white move.
+                gridTemplateColumns: "56px 1fr 1fr",
                 padding: "2px 0",
                 alignItems: "center",
               }}
             >
-              <span style={{ color: "var(--text-faint)" }}>{p.moveNum}.</span>
+              <span style={{ color: "var(--lcd-dim)" }}>{p.moveNum}.</span>
 
+              {/*
+                The current ply is marked by colour and the left border, never
+                by weight. Departure Mono ships one weight, so asking for bold
+                got a synthesised one — the browser smearing a 1px stem sideways
+                — on the single element the eye tracks most.
+              */}
               {p.white && (
                 <button
                   onClick={() => controller?.setCursor(p.white!.index)}
                   style={{
                     textAlign: "left",
-                    color: isWhiteActive ? "var(--text)" : "var(--text-dim)",
-                    fontWeight: isWhiteActive ? "bold" : "normal",
+                    color: isWhiteActive ? "var(--lcd-on)" : "var(--lcd-dim)",
                     borderLeft: isWhiteActive
-                      ? "2px solid var(--accent)"
+                      ? "2px solid var(--lcd-on)"
                       : "2px solid transparent",
                     paddingLeft: "var(--sp-1)",
                     cursor: "pointer",
@@ -115,10 +122,9 @@ export function MoveList({ controller }: MoveListProps) {
                   onClick={() => controller?.setCursor(p.black!.index)}
                   style={{
                     textAlign: "left",
-                    color: isBlackActive ? "var(--text)" : "var(--text-dim)",
-                    fontWeight: isBlackActive ? "bold" : "normal",
+                    color: isBlackActive ? "var(--lcd-on)" : "var(--lcd-dim)",
                     borderLeft: isBlackActive
-                      ? "2px solid var(--accent)"
+                      ? "2px solid var(--lcd-on)"
                       : "2px solid transparent",
                     paddingLeft: "var(--sp-1)",
                     cursor: "pointer",

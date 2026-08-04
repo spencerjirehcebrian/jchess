@@ -29,13 +29,13 @@ export function SettingsPanel({ controller, onClose }: SettingsPanelProps) {
 
   return (
     <div
+      className="vx-scrim"
       style={{
         position: "fixed",
         top: 0,
         left: 0,
         width: "100vw",
         height: "100vh",
-        background: "rgba(0, 0, 0, 0.7)",
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
@@ -64,25 +64,37 @@ export function SettingsPanel({ controller, onClose }: SettingsPanelProps) {
             borderBottom: "2px solid var(--accent-dim)",
           }}
         >
+          {/*
+            The literal stays sentence case. Playwright's accessible-name
+            computation applies text-transform and asserts "SETTINGS"; Testing
+            Library's does not and asserts "Settings". Uppercasing here rather
+            than in the string is what keeps both suites true.
+          */}
           <h2
             style={{
-              fontFamily: "var(--font-display)",
-              fontSize: "var(--size-lg)",
+              fontFamily: "var(--font-legend)",
+              fontSize: "var(--legend-lg)",
               fontWeight: 700,
-              fontStretch: "120%",
               textTransform: "uppercase",
-              letterSpacing: "0.16em",
+              letterSpacing: "3px",
+              lineHeight: "var(--lh-legend-lg)",
             }}
           >
             Settings
           </h2>
+          {/*
+            A letter X, not U+2715. The multiplication glyph is not in
+            Silkscreen and fell back to a system face at a fractional width;
+            this one is drawn by the same face as every other legend on the
+            panel. The accessible name is what carries the meaning either way.
+          */}
           <button
             className="vx-button"
             data-size="sm"
             onClick={onClose}
             aria-label="Close settings"
           >
-            ✕
+            X
           </button>
         </div>
 
@@ -160,7 +172,8 @@ export function SettingsPanel({ controller, onClose }: SettingsPanelProps) {
             <p
               style={{
                 marginTop: "var(--sp-2)",
-                fontSize: "var(--size-xs)",
+                fontSize: "var(--data-xs)",
+                lineHeight: "var(--lh-data-xs)",
                 color: "var(--text-faint)",
               }}
             >
@@ -194,7 +207,8 @@ export function SettingsPanel({ controller, onClose }: SettingsPanelProps) {
             style={{
               borderTop: "1px solid var(--border)",
               paddingTop: "var(--sp-3)",
-              fontSize: "var(--size-xs)",
+              fontSize: "var(--data-xs)",
+              lineHeight: "var(--lh-data-xs)",
               color: "var(--text-faint)",
             }}
           >

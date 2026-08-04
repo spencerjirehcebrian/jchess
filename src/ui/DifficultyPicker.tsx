@@ -42,8 +42,9 @@ export function DifficultyPicker({ controller }: DifficultyPickerProps) {
         <span className="vx-label">Level</span>
         <span
           style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: "var(--size-sm)",
+            fontFamily: "var(--font-data)",
+            fontSize: "var(--data-xs)",
+            lineHeight: "var(--lh-data-xs)",
             color: "var(--text)",
           }}
         >
@@ -87,10 +88,10 @@ export function DifficultyPicker({ controller }: DifficultyPickerProps) {
 
       <div
         style={{
-          fontFamily: "var(--font-mono)",
-          fontSize: "var(--size-xs)",
+          fontFamily: "var(--font-data)",
+          fontSize: "var(--data-xs)",
           color: "var(--text-faint)",
-          lineHeight: 1.4,
+          lineHeight: "var(--lh-data-xs)",
         }}
       >
         ~{current?.approxElo} Elo

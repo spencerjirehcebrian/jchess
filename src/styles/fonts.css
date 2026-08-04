@@ -2,25 +2,47 @@
  * Self-hosted, latin subset only. Cross-origin isolation (COEP) blocks font
  * CDNs, so these must ship with the app — see docs/09-ui-design.md.
  *
- * Archivo      — variable weight and width. Names things: the wordmark, the
- *                players, and every control, set condensed and heavy.
- * Departure Mono — the notation, move list, clocks and coordinates. It is drawn
- *                on a pixel grid, which is the same grammar as the pieces.
+ * Two pixel faces, and each owns a job.
+ *
+ * Silkscreen     — the silkscreened legends printed on the housing: buttons,
+ *                  labels, player names, headings. Crisp only at multiples of
+ *                  8px; cap height is size x 0.625.
+ * Departure Mono — the LCD readout and every sentence: moves, clocks, notation,
+ *                  coordinates. Crisp only at multiples of 11px, where its
+ *                  7/11-em advance lands on whole pixels.
+ *
+ * Both are drawn on a pixel grid, which is the same grammar as the pieces.
+ *
+ * `block`, not `swap`: the layout is built on whole-pixel type metrics, so a
+ * fallback face flashing at the wrong advance reflows the entire deck. Better a
+ * beat of nothing than a beat of the wrong machine.
+ *
+ * Archivo used to sit above both of these — a variable sans doing the naming
+ * while the pixel face was quarantined to the readouts. It was the loudest
+ * reason the chrome read as a web page wrapped around a game, and it cost 90KB
+ * of the 112KB font payload. These two together are 30KB.
  */
 
 @font-face {
-  font-family: "Archivo";
+  font-family: "Silkscreen";
   font-style: normal;
-  font-weight: 100 900;
-  font-stretch: 62.5% 125%;
-  font-display: swap;
-  src: url("/fonts/archivo-var-latin.woff2") format("woff2");
+  font-weight: 400;
+  font-display: block;
+  src: url("/fonts/silkscreen-latin.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Silkscreen";
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url("/fonts/silkscreen-latin-bold.woff2") format("woff2");
 }
 
 @font-face {
   font-family: "Departure Mono";
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: block;
   src: url("/fonts/departure-mono.woff2") format("woff2");
 }

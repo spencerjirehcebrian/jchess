@@ -1,4 +1,9 @@
 :root {
+  /*
+   * The document is the dark room the board sits in. The housing subtree
+   * re-declares this as `light` so native selects and their popups render as
+   * pale chrome on pale plastic instead of dark chrome inside it.
+   */
   color-scheme: dark;
 
   /*
@@ -7,31 +12,34 @@
    * has resolved, already matches the scene instead of flashing a grey shell.
    */
 
-  /* Surface — warm lacquer ramp */
+  /* The room the machine stands in. The only dark surface left in the DOM. */
   --bg: #090605;
-  --surface: #17120f;
-  --surface-raised: #302722;
-  --border: #33291f;
-  --border-strong: #4a3b2a;
 
-  /* Text — the lightest value is the white pieces' own boxwood */
-  --text: #ede0c8;
-  --text-dim: #b5a489;
-  --text-faint: #93836c;
+  /* Housing — moulded boxwood ABS, the same stock the white pieces are cut from */
+  --surface: #867d6b;
+  --surface-raised: #d8caac;
+  --border: #b1a68d;
+  --border-strong: #867d6b;
 
-  /* Accent — maki-e gold, the black pieces' detail voxel */
-  --accent: #c9a227;
-  --accent-bright: #e8c558;
-  --accent-dim: #8a6b2e;
+  /* Inks silkscreened onto it. Dark, because the housing is pale. */
+  --text: #23201c;
+  --text-dim: #484339;
+  --text-faint: #5a5448;
 
-  /* Premove — vermilion, the white pieces' detail voxel */
+  /* The signal ink — deep vermilion, the white pieces' detail voxel. Gold is
+     1.1:1 on this housing and cannot be type here; it stays on the board. */
+  --accent: #8e2e1f;
+  --accent-bright: #662116;
+  --accent-dim: #a45d49;
+
+  /* Premove — bright, because it is read on the board, not on the housing */
   --premove: #d1462f;
   --premove-dim: #8e2e1f;
 
-  /* Status */
-  --warning: #d98e2b;
-  --error: #c4402b;
-  --success: #8a9a5b;
+  /* Status inks */
+  --warning: #744c17;
+  --error: #983221;
+  --success: #4f5934;
 
   /*
    * Extrusion set. A panel is a voxel seen head-on: its front is a Z face, its
@@ -39,41 +47,94 @@
    * in shadow. Recomputed per theme from the same multipliers the mesher bakes
    * into the geometry, so DOM and canvas are lit by one imaginary sun.
    */
-  --voxel-face: #231c18;
-  --voxel-top: #302722;
-  --voxel-side: #27201c;
-  --voxel-under: #1a1513;
-  --voxel-well: #16120f; /* material x 0.45 — the floor of a recess */
-  --voxel-accent-face: #90741c;
-  --voxel-accent-top: #c9a227;
-  --voxel-accent-under: #6e5915;
+  --voxel-face: #d8caac; /* material x 1.00 — the deck, seen face-on */
+  --voxel-top: #ede0c8; /* specular — the lit bevel on a raised edge */
+  --voxel-side: #b1a68d; /* material x 0.82 — the right edge */
+  --voxel-under: #776f5f; /* material x 0.55 — the shadowed bottom edge */
+  --voxel-hover: #e2d6bd; /* the deck, tinted toward the sheen */
+  --voxel-recess: #867d6b; /* material x 0.62 — a slot moulded in the deck */
+  --voxel-seam: #413d34; /* material x 0.30 — the gap a keycap sits in */
+  --voxel-well: #867d6b;
+  --voxel-accent-face: #662116;
+  --voxel-accent-top: #8e2e1f;
+  --voxel-accent-under: #4e1911;
+  --knockout: #ede0c8; /* a legend knocked out of an accent keycap */
 
   /*
-   * Type — two faces, and each owns a job.
-   *
-   * Archivo names things: the wordmark, the players, every control. Its width
-   * axis is what makes a button legible at 13px in condensed caps, and it is
-   * the same face the eyebrows already used, so a button and a label are now
-   * the same voice at two volumes.
-   *
-   * Departure Mono states them: moves, clocks, notation, coordinates. It is
-   * drawn on a pixel grid, the same grammar as the pieces.
-   *
-   * A third face used to sit on the buttons — the most-looked-at chrome in the
-   * app — with no relationship to either of these or to the board.
+   * The display. Derived from `lcdOn` per theme by applyThemeToCss; these are
+   * the Lacquer values so first paint shows a module rather than a hole.
    */
-  --font-display: "Archivo", system-ui, sans-serif;
-  --font-body: "Archivo", system-ui, sans-serif;
-  --font-mono: "Departure Mono", ui-monospace, monospace;
+  --lcd-on: #a8c08a; /* a lit pixel */
+  --lcd-dim: #83965b; /* secondary data */
+  --lcd-off: #1e2218; /* an undriven cell — visible, and that is the point */
+  --lcd-field: #090b08; /* the gutter between cells */
+  --lcd-alert: #e8654a; /* the display's one other hue */
 
-  --size-xs: 0.6875rem; /* 11px — labels, eyebrows */
-  --size-sm: 0.8125rem; /* 13px — controls, move list, secondary */
-  --size-lg: 1.375rem; /* 22px — notation field */
-  --size-xl: 1.75rem; /* 28px — clocks, result */
+  /*
+   * Type — two pixel faces, and each owns a job.
+   *
+   * Silkscreen names things: the legends silkscreened onto the housing — every
+   * button, label, player name and heading. Set in caps, because that is how a
+   * moulded panel is printed.
+   *
+   * Departure Mono states them: the LCD readout, and every sentence. Moves,
+   * clocks, notation, coordinates, system messages.
+   *
+   * Both are drawn on a pixel grid, the same grammar as the pieces — but on
+   * *different* grids, and neither survives being taken off its own. Silkscreen
+   * is exact only at multiples of 8, Departure Mono only at multiples of 11,
+   * where its 7/11-em advance lands on whole pixels. Every size below is one of
+   * those multiples, and there are no others. A 13px Departure Mono — which is
+   * what this app used to set the move list in — advances 8.2727px per glyph and
+   * is resampled into mush.
+   */
+  --font-legend: "Silkscreen", monospace;
+  --font-data: "Departure Mono", ui-monospace, monospace;
 
-  /* Controls — one height for every button, select and field in the rail. */
+  /*
+   * Every size is paired with a line-height, and the pairing is not taste.
+   *
+   * A line box puts half its leftover space above the text: the glyphs are
+   * offset by (line-height - (ascent + descent)) / 2. Land that on a half pixel
+   * and every glyph in the element is resampled, which blurs far more type than
+   * tracking or size ever will. So each line-height below is chosen to make that
+   * number a whole one, against these measured metrics:
+   *
+   *   Departure Mono   ascent + descent = size x 14/11 -> 14 / 28 / 42, all even
+   *   Silkscreen  8/16                                 -> 10 / 20,      even
+   *   Silkscreen 24/32                                 -> 31 / 41,      ODD
+   *
+   * Departure Mono and small Silkscreen therefore take even line-heights, and
+   * Silkscreen at 24 and 32 takes odd ones. Use the pairs; do not mix and match.
+   */
+
+  /* Silkscreen. Cap height is size x 0.625, so these read 5 / 10 / 15 / 20. */
+  --legend-xs: 8px; /* single-character sublegends */
+  --legend: 16px; /* buttons, selects, eyebrows, player names */
+  --legend-lg: 24px; /* dialog headings, result */
+  --legend-xl: 32px; /* wordmark, model badge */
+
+  --lh-legend-xs: 10px;
+  --lh-legend: 16px;
+  --lh-legend-lg: 27px; /* odd, by the rule above */
+  --lh-legend-xl: 35px; /* odd */
+
+  /* Departure Mono. */
+  --data-xs: 11px; /* dense data, footnotes, sentences */
+  --data: 22px; /* transcript, notation buffer */
+  --data-lg: 33px; /* clocks, major readouts */
+
+  --lh-data-xs: 22px;
+  --lh-data: 22px;
+  --lh-data-lg: 36px;
+
+  /*
+   * Controls — one height for every button, select and field in the rail. Both
+   * are a legend line box plus symmetric whole-pixel padding, so the cap sits on
+   * an integer baseline: 16 + 12 + 12, and 16 + 4 + 4.
+   */
   --control-h: 40px;
-  --control-h-sm: 28px;
+  --control-h-sm: 24px;
 
   /* Space — one UI voxel is 4px, and every gap is a whole number of them */
   --vx: 4px;

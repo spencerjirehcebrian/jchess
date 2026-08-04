@@ -27,11 +27,11 @@ export function ResultBanner({ result, controller }: ResultBannerProps) {
     >
       <h2
         style={{
-          fontFamily: "var(--font-display)",
-          fontSize: "var(--size-xl)",
+          fontFamily: "var(--font-legend)",
+          fontSize: "var(--legend-lg)",
           fontWeight: 700,
-          fontStretch: "120%",
-          letterSpacing: "0.16em",
+          letterSpacing: "3px",
+          lineHeight: "var(--lh-legend-lg)",
           textTransform: "uppercase",
           color: "var(--accent-bright)",
           marginBottom: "var(--sp-1)",
@@ -42,7 +42,8 @@ export function ResultBanner({ result, controller }: ResultBannerProps) {
       <p
         style={{
           color: "var(--text-dim)",
-          fontSize: "var(--size-sm)",
+          fontSize: "var(--data-xs)",
+          lineHeight: "var(--lh-data-xs)",
           marginBottom: "var(--sp-3)",
         }}
       >

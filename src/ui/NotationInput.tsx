@@ -89,8 +89,8 @@ export function NotationInput({ controller }: NotationInputProps) {
   const chevronColor = notationState.exactMatch
     ? isPremoveMode
       ? "var(--premove)"
-      : "var(--accent-bright)"
-    : "var(--text-dim)";
+      : "var(--lcd-on)"
+    : "var(--lcd-dim)";
 
   // The shortest candidate that starts with what has been typed. Its tail is
   // painted behind the caret so the completion is legible before it is taken.
@@ -100,19 +100,18 @@ export function NotationInput({ controller }: NotationInputProps) {
     return match ? match.slice(buffer.length) : "";
   })();
 
-  const accentColor = isPremoveMode ? "var(--premove)" : "var(--accent)";
+  const accentColor = isPremoveMode ? "var(--premove)" : "var(--lcd-on)";
 
   /*
-   * Inverted extrusion. Every other surface in the app is a block you press
-   * on — lit along the top edge, shadowed along the bottom. This is the one
-   * thing you type into, so the light falls the other way and it reads as a
+   * Inverted extrusion, shared with every other recess in the app. This is the
+   * one thing you type into, so the light falls the other way and it reads as a
    * slot cut into the material rather than a button sitting on it.
+   *
+   * Taken as a custom property rather than the .vx-recess class because the
+   * focus ring is composed onto the front of the list below, and an inline
+   * box-shadow would replace the class's outright.
    */
-  const recess = [
-    "inset 0 2px 0 0 var(--voxel-under)",
-    "inset 2px 0 0 0 var(--voxel-under)",
-    "inset 0 -2px 0 0 var(--voxel-top)",
-  ].join(", ");
+  const recess = "var(--vx-recess-shadow)";
 
   /*
    * The native outline is suppressed because clip-path would crop it, so the
@@ -125,24 +124,34 @@ export function NotationInput({ controller }: NotationInputProps) {
     : notationState.exactMatch
       ? accentColor
       : isFocused
-        ? "var(--accent-bright)"
+        ? "var(--lcd-on)"
         : null;
 
   return (
     <div
+      /*
+       * The input line of the same display the transcript is written on. The
+       * machine has one screen; this is the part of it you type into.
+       *
+       * 86, and every term in it is whole: 12 padding + 32 typing row + 8 gap
+       * + 22 candidate row + 12 padding. The content fills the box exactly, so
+       * `justifyContent: center` distributes nothing and no line box lands on a
+       * half pixel. At the old 84 it had one pixel of slack to centre into, and
+       * every glyph in the field was resampled by half of it.
+       */
+      className="vx-lcd"
       style={{
         width: "100%",
-        height: "84px",
-        minHeight: "84px",
-        maxHeight: "84px",
+        height: "86px",
+        minHeight: "86px",
+        maxHeight: "86px",
         flexShrink: 0,
         boxSizing: "border-box",
         position: "relative",
-        background: "var(--voxel-well)",
         clipPath: "var(--vx-notch)",
         boxShadow: stateRing ? `inset 0 0 0 2px ${stateRing}, ${recess}` : recess,
-        padding: "var(--sp-3) var(--sp-4)",
-        fontFamily: "var(--font-mono)",
+        padding: "12px 16px",
+        fontFamily: "var(--font-data)",
         display: "flex",
         flexDirection: "column",
         justifyContent: "center",
@@ -154,14 +163,27 @@ export function NotationInput({ controller }: NotationInputProps) {
         style={{
           display: "flex",
           alignItems: "baseline",
-          fontSize: "var(--size-lg)",
-          lineHeight: 1.2,
+          fontSize: "var(--data)",
+          // 32, not the --lh-data 22: this row wants air, and 32 against a
+          // 28px content height leaves a whole 2px of half-leading.
+          lineHeight: "32px",
+          height: "32px",
         }}
       >
+        {/*
+          Pinned to exactly one cell. U+25B8 is not in Departure Mono's latin
+          subset, so the browser falls back for it and renders it 13.245px wide
+          against the face's true 14px advance — which pushed the input, and so
+          every character the user types, onto a fractional x. Giving the mark
+          its own cell puts the readout back on the grid regardless of which
+          font ends up drawing it.
+        */}
         <span
           aria-hidden="true"
           style={{
             color: chevronColor,
+            width: "1ch",
+            flexShrink: 0,
             marginRight: "var(--sp-3)",
             transition: "color var(--dur-fast) ease",
           }}
@@ -191,18 +213,21 @@ export function NotationInput({ controller }: NotationInputProps) {
               <>
                 <span
                   style={{
-                    color: isPremoveMode ? "var(--premove)" : "var(--text)",
+                    color: isPremoveMode ? "var(--premove)" : "var(--lcd-on)",
                   }}
                 >
                   {buffer}
                 </span>
-                <span style={{ color: "var(--text-faint)" }}>{ghost}</span>
+                <span style={{ color: "var(--lcd-dim)" }}>{ghost}</span>
               </>
             ) : (
               // Offset by one cell so the block caret does not sit on top of
               // the first character of the hint.
+              // Exactly one cell, so the block caret sits clear of the hint's
+              // first character. 1.2ch was 16.8px and put the hint on a
+              // fractional x for the whole of its run.
               <span
-                style={{ color: "var(--text-faint)", paddingLeft: "1.2ch" }}
+                style={{ color: "var(--lcd-dim)", paddingLeft: "1ch" }}
               >
                 {isPremoveMode ? "premove" : "e4, Nf3"}
               </span>
@@ -234,17 +259,23 @@ export function NotationInput({ controller }: NotationInputProps) {
             }}
           />
 
-          {/* Solid block caret, 530ms, sitting after the typed characters. */}
+          {/*
+            Solid block caret, 530ms, sitting after the typed characters.
+            Every term is a whole pixel. Departure Mono advances exactly 7/11 em,
+            so at --data one cell is 14px and `${n}ch` is always an integer — but
+            only while nothing adds tracking to this face, which is why the data
+            face carries none anywhere in the app. The old 0.55em/1.05em box was
+            12.1 x 23.1px and the 50% + translate centring added another half.
+          */}
           <span
             aria-hidden="true"
             style={{
               position: "absolute",
               display: isFocused ? "block" : "none",
-              top: "50%",
+              top: "5px",
               left: `${buffer.length}ch`,
-              transform: "translateY(-50%)",
-              width: "0.55em",
-              height: "1.05em",
+              width: "14px",
+              height: "22px",
               background: accentColor,
               animation: "vx-caret 1060ms steps(1) infinite",
               pointerEvents: "none",
@@ -254,8 +285,9 @@ export function NotationInput({ controller }: NotationInputProps) {
 
         <span
           style={{
-            fontSize: "var(--size-xs)",
-            color: "var(--text-faint)",
+            fontSize: "var(--data-xs)",
+            lineHeight: "var(--lh-data-xs)",
+            color: "var(--lcd-dim)",
             whiteSpace: "nowrap",
             marginLeft: "var(--sp-3)",
           }}
@@ -268,10 +300,10 @@ export function NotationInput({ controller }: NotationInputProps) {
         id="notation-candidates"
         aria-live="polite"
         style={{
-          height: "20px",
-          lineHeight: "20px",
-          fontSize: "var(--size-sm)",
-          color: "var(--text-dim)",
+          height: "22px",
+          lineHeight: "var(--lh-data-xs)",
+          fontSize: "var(--data-xs)",
+          color: "var(--lcd-dim)",
           marginTop: "var(--sp-2)",
           whiteSpace: "nowrap",
           overflow: "hidden",
@@ -285,14 +317,14 @@ export function NotationInput({ controller }: NotationInputProps) {
             key={toUci(candidateMoves[i]!)}
             style={{ marginRight: "var(--sp-3)" }}
           >
-            <span style={{ color: "var(--text)" }}>{buffer}</span>
-            <span style={{ color: "var(--text-faint)" }}>
+            <span style={{ color: "var(--lcd-on)" }}>{buffer}</span>
+            <span style={{ color: "var(--lcd-dim)" }}>
               {san.startsWith(buffer) ? san.slice(buffer.length) : san}
             </span>
           </span>
         ))}
         {remainingCount > 0 && (
-          <span style={{ color: "var(--text-faint)" }}>
+          <span style={{ color: "var(--lcd-dim)" }}>
             +{remainingCount} more
           </span>
         )}

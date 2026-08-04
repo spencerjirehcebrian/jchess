@@ -21,8 +21,8 @@ const stepStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  fontSize: "14px",
-  lineHeight: 1,
+  fontSize: "var(--legend)",
+  lineHeight: "var(--lh-legend)",
 };
 
 /**
@@ -58,14 +58,20 @@ export function BoardSizeControls({ controller }: BoardSizeControlsProps) {
         aria-label="Make the board smaller"
         style={stepStyle}
       >
-        −
+        {/*
+          A hyphen, not U+2212. The typographic minus is not in Silkscreen and
+          fell back to a system face; its partner "+" is in the font, so the
+          pair was being drawn by two different typefaces.
+        */}
+        -
       </button>
 
       <span
         aria-live="polite"
         style={{
-          fontFamily: "var(--font-mono)",
-          fontSize: "var(--size-sm)",
+          fontFamily: "var(--font-data)",
+          fontSize: "var(--data-xs)",
+          lineHeight: "var(--lh-data-xs)",
           color: "var(--text-dim)",
           minWidth: "4ch",
           textAlign: "center",

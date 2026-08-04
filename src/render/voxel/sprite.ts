@@ -41,6 +41,15 @@ function materialColor(char: string, palette: Palette): string | null {
 
 const cache = new Map<string, string>();
 
+/** Perceived lightness, enough to decide which way an outline should go. */
+function isLight(hex: string): boolean {
+  const n = parseInt(hex.replace("#", ""), 16);
+  const r = (n >> 16) & 0xff;
+  const g = (n >> 8) & 0xff;
+  const b = n & 0xff;
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.5;
+}
+
 /**
  * @param pixel Device pixels per voxel.
  * @returns A data URL, or null where there is no canvas (tests, SSR).
@@ -60,8 +69,9 @@ export function pieceSpriteUrl(
   const height = def.grid.length;
 
   const canvas = document.createElement("canvas");
-  canvas.width = WIDTH * pixel;
-  canvas.height = height * pixel;
+  // One voxel of margin all round, for the outline to occupy.
+  canvas.width = (WIDTH + 2) * pixel;
+  canvas.height = (height + 2) * pixel;
   const ctx = canvas.getContext("2d");
   if (!ctx) return null;
 
@@ -73,6 +83,17 @@ export function pieceSpriteUrl(
     return row[x] !== undefined && row[x] !== ".";
   };
 
+  /*
+   * Collect the elevation first, then paint an outline under it.
+   *
+   * The same sprite has to read on a pale keycap, in a dark tray and over the
+   * board. A white piece is 2.4:1 on the moulded deck and a black piece is
+   * 1.5:1 in the slot it sits in, so no single background works for both sets —
+   * the fix belongs to the sprite, not to whatever is behind it. One voxel of
+   * contrasting halo, stamped in the four axis directions, makes the piece
+   * self-contained anywhere. It is drawn in the same hard pixels as the rest.
+   */
+  const cells: { x: number; y: number; color: string }[] = [];
   for (let y = 0; y < height; y++) {
     const layer = def.grid[y]!;
     for (let x = 0; x < WIDTH; x++) {
@@ -93,9 +114,29 @@ export function pieceSpriteUrl(
 
       // A voxel with nothing above it shows its top face; otherwise its front.
       const lit = !filled(y + 1, z, x);
-      ctx.fillStyle = shade(base, lit ? FACE_SHADING.top : FACE_SHADING.sideZ);
-      ctx.fillRect(x * pixel, (height - 1 - y) * pixel, pixel, pixel);
+      cells.push({
+        x: x + 1,
+        y: height - 1 - y + 1,
+        color: shade(base, lit ? FACE_SHADING.top : FACE_SHADING.sideZ),
+      });
     }
+  }
+
+  ctx.fillStyle = isLight(palette.base) ? "#000000" : "#FFFFFF";
+  for (const { x, y } of cells) {
+    for (const [dx, dy] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ] as const) {
+      ctx.fillRect((x + dx) * pixel, (y + dy) * pixel, pixel, pixel);
+    }
+  }
+
+  for (const { x, y, color } of cells) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x * pixel, y * pixel, pixel, pixel);
   }
 
   const url = canvas.toDataURL();

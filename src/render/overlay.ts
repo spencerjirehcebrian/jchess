@@ -43,7 +43,7 @@ export class OverlayManager {
     const ringGeo = new THREE.RingGeometry(0.2, 0.45, 32);
     ringGeo.rotateX(-Math.PI / 2);
     const ringMat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(theme.cssTokens.accent),
+      color: new THREE.Color(theme.cssTokens.boardAccent),
       transparent: true,
       opacity: 0,
       depthWrite: false,
@@ -55,7 +55,7 @@ export class OverlayManager {
 
     // Last move from
     const fromMat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(theme.cssTokens.accent),
+      color: new THREE.Color(theme.cssTokens.boardAccent),
       transparent: true,
       opacity: 0.18,
       depthWrite: false,
@@ -66,7 +66,7 @@ export class OverlayManager {
 
     // Last move to
     const toMat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(theme.cssTokens.accent),
+      color: new THREE.Color(theme.cssTokens.boardAccent),
       transparent: true,
       opacity: 0.28,
       depthWrite: false,
@@ -77,7 +77,7 @@ export class OverlayManager {
 
     // Selected square
     const selMat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(theme.cssTokens.accent),
+      color: new THREE.Color(theme.cssTokens.boardAccent),
       transparent: true,
       opacity: 0.5,
       depthWrite: false,
@@ -90,7 +90,7 @@ export class OverlayManager {
     // hangs over this square while you aim, and would cover a fill.
     // EdgesGeometry drops the plane's coplanar diagonal, leaving four sides.
     const hoverMat = new THREE.LineBasicMaterial({
-      color: new THREE.Color(theme.cssTokens.accentBright),
+      color: new THREE.Color(theme.cssTokens.boardAccentBright),
       transparent: true,
       opacity: 0.9,
       depthWrite: false,
@@ -106,7 +106,7 @@ export class OverlayManager {
     const dotGeo = new THREE.CircleGeometry(0.12, 16);
     dotGeo.rotateX(-Math.PI / 2);
     const dotMat = new THREE.MeshBasicMaterial({
-      color: new THREE.Color(theme.cssTokens.accent),
+      color: new THREE.Color(theme.cssTokens.boardAccent),
       transparent: true,
       opacity: 0.55,
       depthWrite: false,
@@ -248,7 +248,7 @@ export class OverlayManager {
   }
 
   setTheme(theme: Theme) {
-    const detailColor = new THREE.Color(theme.cssTokens.accent);
+    const detailColor = new THREE.Color(theme.cssTokens.boardAccent);
     (this.impactRingMesh.material as THREE.MeshBasicMaterial).color =
       detailColor;
     (this.lastMoveFromQuad.material as THREE.MeshBasicMaterial).color =
@@ -258,7 +258,7 @@ export class OverlayManager {
     (this.selectedSquareQuad.material as THREE.MeshBasicMaterial).color =
       detailColor;
     (this.hoverSquareQuad.material as THREE.LineBasicMaterial).color =
-      new THREE.Color(theme.cssTokens.accentBright);
+      new THREE.Color(theme.cssTokens.boardAccentBright);
     this.legalDotMaterial.color = detailColor;
     this.premoveDotMaterial.color = new THREE.Color(theme.cssTokens.premove);
   }

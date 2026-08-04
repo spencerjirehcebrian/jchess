@@ -77,6 +77,7 @@ export function PromotionPicker({
   return (
     <div
       ref={containerRef}
+      className="vx-lift"
       role="dialog"
       aria-label="Choose promotion piece"
       style={{
@@ -87,8 +88,6 @@ export function PromotionPicker({
         display: "flex",
         gap: "var(--sp-1)",
         padding: "var(--sp-1)",
-        background: "var(--voxel-top, #222)",
-        boxShadow: "0 4px 0 0 var(--voxel-under, #000)",
         zIndex: 20,
       }}
     >
@@ -126,15 +125,18 @@ export function PromotionPicker({
                 }}
               />
             ) : (
-              <span style={{ fontSize: "26px", lineHeight: 1 }}>
+              // A system glyph, so it is off both pixel grids by nature; sized
+              // to sit where the sprite would rather than to any type scale.
+              <span style={{ fontSize: "24px", lineHeight: "24px" }}>
                 {choice.glyph[color]}
               </span>
             )}
             <span
               aria-hidden="true"
               style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: "var(--size-xs)",
+                fontFamily: "var(--font-legend)",
+                fontSize: "var(--legend-xs)",
+                lineHeight: "var(--lh-legend-xs)",
                 color: "var(--text-faint)",
                 textTransform: "uppercase",
               }}

@@ -279,7 +279,14 @@ export function BoardCanvas({ controller }: BoardCanvasProps) {
         overflow: "hidden",
       }}
     >
+      {/*
+        The aperture the board is set into. Drawn as a ::after on this element
+        rather than as a wrapper of its own: the board-size spec reads
+        `max-width` off the canvas's immediate parent, so an extra node here
+        would silently break it while looking harmless.
+      */}
       <div
+        className="app-board-aperture"
         style={{
           width: "100%",
           height: "100%",

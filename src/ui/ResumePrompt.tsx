@@ -40,10 +40,10 @@ function plyLabel(pgn: string): string {
 export function ResumePrompt({ game, onResume, onDiscard }: ResumePromptProps) {
   return (
     <div
+      className="vx-scrim"
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(0, 0, 0, 0.7)",
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
@@ -64,11 +64,11 @@ export function ResumePrompt({ game, onResume, onDiscard }: ResumePromptProps) {
       >
         <h2
           style={{
-            fontFamily: "var(--font-display)",
-            fontSize: "var(--size-lg)",
+            fontFamily: "var(--font-legend)",
+            fontSize: "var(--legend-lg)",
             fontWeight: 700,
-            fontStretch: "120%",
-            letterSpacing: "0.16em",
+            letterSpacing: "3px",
+            lineHeight: "var(--lh-legend-lg)",
             textTransform: "uppercase",
             paddingBottom: "var(--sp-3)",
             borderBottom: "2px solid var(--accent-dim)",
@@ -80,8 +80,8 @@ export function ResumePrompt({ game, onResume, onDiscard }: ResumePromptProps) {
         <p
           style={{
             margin: "var(--sp-4) 0 var(--sp-2)",
-            fontSize: "var(--size-sm)",
-            lineHeight: 1.5,
+            fontSize: "var(--data-xs)",
+            lineHeight: "var(--lh-data-xs)",
           }}
         >
           You left a game {whenLabel(game.updatedAt)}, {plyLabel(game.pgn)}{" "}
