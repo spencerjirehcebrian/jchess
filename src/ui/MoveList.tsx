@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
 import { useGameStore } from "../store";
+import { HistoryEntry } from "../core/types";
 import { GameController } from "../store/controller";
+import { formatEval } from "./EvalStrip";
 
 interface MoveListProps {
   controller: GameController | null;
@@ -14,6 +16,7 @@ export function MoveList({ controller }: MoveListProps) {
     moveNum: number;
     white: { san: string; index: number } | null;
     black: { san: string; index: number } | null;
+    scored: HistoryEntry | null;
   }[] = [];
 
   for (let i = 0; i < state.history.length; i += 2) {
@@ -23,10 +26,29 @@ export function MoveList({ controller }: MoveListProps) {
       moveNum: Math.floor(i / 2) + 1,
       white: { san: whiteEntry.san, index: i + 1 },
       black: blackEntry ? { san: blackEntry.san, index: i + 2 } : null,
+      // The engine plays one colour, so at most one ply of a pair was ever
+      // searched — which is why a single score per row is a full column rather
+      // than a half-empty one.
+      scored:
+        [whiteEntry, blackEntry].find(
+          (e) => e && (e.evalCp !== undefined || e.evalMate !== undefined),
+        ) ?? null,
     });
   }
 
   const isBrowsing = state.cursor < state.history.length;
+
+  /*
+   * The scores stay dark until the game is decided — same rule as the strip
+   * above the transcript, and for the same reason.
+   *
+   * 56px, so the two move columns keep splitting an even remainder. The rail is
+   * 340-380px and the display pads 12px a side, which leaves an even inner
+   * width; take two even columns out of it and each `1fr` still lands on a whole
+   * pixel. An odd column here would put every black move in the game on a half.
+   */
+  const showEval = state.status.kind === "over";
+  const columns = showEval ? "56px 1fr 1fr 56px" : "56px 1fr 1fr";
 
   useEffect(() => {
     if (!isBrowsing && listRef.current) {
@@ -87,7 +109,7 @@ export function MoveList({ controller }: MoveListProps) {
                 display: "grid",
                 // 56, not 40: at --data a three-character move number is 42px
                 // wide and was overrunning its column into the white move.
-                gridTemplateColumns: "56px 1fr 1fr",
+                gridTemplateColumns: columns,
                 padding: "2px 0",
                 alignItems: "center",
               }}
@@ -134,6 +156,18 @@ export function MoveList({ controller }: MoveListProps) {
                 </button>
               ) : (
                 <span />
+              )}
+
+              {showEval && (
+                <span
+                  style={{
+                    textAlign: "right",
+                    fontVariantNumeric: "tabular-nums",
+                    color: "var(--lcd-dim)",
+                  }}
+                >
+                  {p.scored ? formatEval(p.scored) : ""}
+                </span>
               )}
             </div>
           );

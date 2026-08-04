@@ -488,7 +488,23 @@ export class GameController {
         if (this.state.status.kind !== "engine-delaying") return;
       }
 
-      this.applyEngineMove(parsedMove);
+      /*
+       * The engine wrapper puts the settled search's own depth and score on the
+       * result, so the reading recorded against the move is the one the move was
+       * actually chosen on — not whatever the last throttled progress happened
+       * to be. Same white-positive normalisation as the live readout.
+       */
+      const sign = engineColor === "white" ? 1 : -1;
+      this.applyEngineMove(parsedMove, {
+        cp:
+          searchResult.scoreCp === undefined
+            ? undefined
+            : searchResult.scoreCp * sign,
+        mate:
+          searchResult.scoreMate === undefined
+            ? undefined
+            : searchResult.scoreMate * sign,
+      });
     } catch (err: unknown) {
       // A cancelled search is not a failure — the caller asked for it.
       if (isSearchCancelled(err)) return;
@@ -513,7 +529,14 @@ export class GameController {
     }
   }
 
-  private applyEngineMove(move: Move) {
+  /**
+   * @param evaluation The search's own verdict on the position it moved from,
+   * already normalised to white-positive, recorded onto the ply it produced.
+   */
+  private applyEngineMove(
+    move: Move,
+    evaluation?: { cp?: number | undefined; mate?: number | undefined },
+  ) {
     const state = this.state;
     if (
       state.status.kind !== "engine-thinking" &&
@@ -545,7 +568,10 @@ export class GameController {
     }
 
     const { entry, posAfter } = buildHistoryEntry(currentPos, move);
-    const newHistory = [...state.history, entry];
+    const newHistory = [
+      ...state.history,
+      { ...entry, evalCp: evaluation?.cp, evalMate: evaluation?.mate },
+    ];
     const clockNow = performance.now();
 
     const gameOutcome = outcome(posAfter, newHistory, state.initialFen);

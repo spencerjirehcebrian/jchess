@@ -18,6 +18,16 @@ export interface HistoryEntry {
   captured?: Role | undefined;
   isCheck: boolean;
   isMate: boolean;
+
+  /*
+   * What the engine thought of the position it had just chosen this move from,
+   * always from white's point of view. Only engine plies carry it — it is the
+   * search that produced the move, not an assessment of the move — and it is
+   * lost when a game is restored, because a PGN is rebuilt from notation. It is
+   * a recorded instrument reading, not a fact about the game.
+   */
+  evalCp?: number | undefined;
+  evalMate?: number | undefined;
 }
 
 export interface Result {

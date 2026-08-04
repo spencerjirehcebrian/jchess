@@ -15,6 +15,7 @@ import { THEMES, applyThemeToCss } from "../render/voxel/palette";
 import { BoardCanvas } from "./BoardCanvas";
 import { NotationInput } from "./NotationInput";
 import { MoveList } from "./MoveList";
+import { EvalStrip } from "./EvalStrip";
 import { DifficultyPicker } from "./DifficultyPicker";
 import { GameControls } from "./GameControls";
 import { PlayerRow } from "./PlayerRow";
@@ -267,6 +268,13 @@ export function App() {
           </h1>
 
           <PlayerRow side="engine" />
+
+          {/*
+            Above the transcript rather than below it, so the gauge and the
+            column of scores it summarises read as one instrument. Renders
+            nothing at all until the game is over.
+          */}
+          <EvalStrip />
 
           <MoveList controller={controller} />
 

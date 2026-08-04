@@ -9,6 +9,7 @@ import { ResultBanner } from '../../src/ui/ResultBanner'
 import { SettingsPanel } from '../../src/ui/SettingsPanel'
 import { NotationInput } from '../../src/ui/NotationInput'
 import { MoveList } from '../../src/ui/MoveList'
+import { EvalStrip } from '../../src/ui/EvalStrip'
 import { BoardSizeControls } from '../../src/ui/BoardSizeControls'
 import { App } from '../../src/ui/App'
 import { PromotionPicker } from '../../src/ui/PromotionPicker'
@@ -77,6 +78,98 @@ describe('UI Component Integration Tests', () => {
     }))
     render(<PlayerRow side="human" />)
     expect(screen.queryByText('Check')).toBeNull()
+  })
+
+  describe('the evaluation readout', () => {
+    const ply = (san: string, evalCp?: number, evalMate?: number) => ({
+      move: { from: 0, to: 1 },
+      san,
+      fenAfter: '',
+      isCheck: false,
+      isMate: false,
+      ...(evalCp !== undefined ? { evalCp } : {}),
+      ...(evalMate !== undefined ? { evalMate } : {}),
+    })
+
+    // White plays, the engine answers and its search is what carries a score.
+    const played = [ply('e4'), ply('e5', 30), ply('Nf3'), ply('Nc6', 250)]
+
+    const setGame = (over: boolean, cursor = played.length) =>
+      useGameStore.setState(() => ({
+        history: played as any,
+        cursor,
+        status: over
+          ? { kind: 'over', result: { winner: 'white', reason: 'resignation' } }
+          : { kind: 'human-turn' },
+      }))
+
+    /*
+     * The whole point of the feature: knowing you are losing before you can see
+     * why is discouraging rather than instructive, so nothing is shown until the
+     * game is decided — even though the scores are already recorded.
+     */
+    it('stays dark while the game is still being played', () => {
+      setGame(false)
+      const { container } = render(<EvalStrip />)
+      expect(container.firstChild).toBeNull()
+    })
+
+    it('appears once the game is over', () => {
+      setGame(true)
+      render(<EvalStrip />)
+      expect(screen.getByLabelText(/White ahead by 2.5 pawns/)).toBeTruthy()
+    })
+
+    it('reads at the cursor, so stepping back walks the assessment back', () => {
+      // Two plies in, the engine's only score so far was +0.30.
+      setGame(true, 2)
+      render(<EvalStrip />)
+      expect(screen.getByLabelText(/White ahead by 0.3 pawns/)).toBeTruthy()
+    })
+
+    /*
+     * Scores are stored white-positive, so a negative one has to come out as
+     * Black — the sign is the one thing here that fails silently.
+     */
+    it('names Black when the score is negative', () => {
+      useGameStore.setState(() => ({
+        history: [ply('e4'), ply('e5', -180)] as any,
+        cursor: 2,
+        status: { kind: 'over', result: { winner: 'black', reason: 'resignation' } },
+      }))
+      render(<EvalStrip />)
+      expect(screen.getByLabelText(/Black ahead by 1.8 pawns/)).toBeTruthy()
+    })
+
+    it('pins to mate rather than treating it as a quantity', () => {
+      useGameStore.setState(() => ({
+        history: [ply('e4'), ply('e5', undefined, 3)] as any,
+        cursor: 2,
+        status: { kind: 'over', result: { winner: 'white', reason: 'checkmate' } },
+      }))
+      render(<EvalStrip />)
+      expect(screen.getByLabelText(/White mates in 3/)).toBeTruthy()
+    })
+
+    it('shows nothing for a game with no engine ply to report on', () => {
+      useGameStore.setState(() => ({
+        history: [ply('e4')] as any,
+        cursor: 1,
+        status: { kind: 'over', result: { winner: 'black', reason: 'resignation' } },
+      }))
+      const { container } = render(<EvalStrip />)
+      expect(container.firstChild).toBeNull()
+    })
+
+    it('holds the transcript score column back until the game is over', () => {
+      setGame(false)
+      const { rerender } = render(<MoveList controller={null} />)
+      expect(screen.queryByText('+2.5')).toBeNull()
+
+      setGame(true)
+      rerender(<MoveList controller={null} />)
+      expect(screen.getByText('+2.5')).toBeTruthy()
+    })
   })
 
   it('renders the difficulty ladder and starts a new game on a rung', () => {
