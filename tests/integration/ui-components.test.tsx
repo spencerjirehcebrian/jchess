@@ -34,6 +34,51 @@ describe('UI Component Integration Tests', () => {
     expect(screen.queryByText('Your move')).toBeNull()
   })
 
+  /*
+   * The check legend belongs to whichever side has to answer it, so both rows
+   * are asserted from the same state — one showing it, one not. Checking only
+   * that it appears somewhere would pass just as well with it lit on both.
+   */
+  const checkingPly = {
+    move: { from: 0, to: 1 },
+    san: 'Qh5+',
+    fenAfter: '',
+    isCheck: true,
+    isMate: false,
+  }
+
+  it('lights the check legend on the side that has to answer it', () => {
+    useGameStore.setState(() => ({
+      status: { kind: 'human-turn' },
+      history: [checkingPly] as any,
+      cursor: 1,
+    }))
+    render(<PlayerRow side="human" />)
+    expect(screen.getByText('Check')).toBeTruthy()
+  })
+
+  it('leaves the check legend dark on the side that gave it', () => {
+    useGameStore.setState(() => ({
+      status: { kind: 'human-turn' },
+      history: [checkingPly] as any,
+      cursor: 1,
+    }))
+    render(<PlayerRow side="engine" />)
+    expect(screen.queryByText('Check')).toBeNull()
+  })
+
+  it('does not report check once it is mate', () => {
+    // The game is over and the result plate says so; a check legend under it
+    // would be reporting the position one move before the end.
+    useGameStore.setState(() => ({
+      status: { kind: 'human-turn' },
+      history: [{ ...checkingPly, san: 'Qxf7#', isMate: true }] as any,
+      cursor: 1,
+    }))
+    render(<PlayerRow side="human" />)
+    expect(screen.queryByText('Check')).toBeNull()
+  })
+
   it('renders the difficulty ladder and starts a new game on a rung', () => {
     const controller = new GameController(useGameStore as any)
     render(<DifficultyPicker controller={controller} />)

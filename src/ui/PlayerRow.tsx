@@ -156,6 +156,18 @@ export function PlayerRow({ side }: PlayerRowProps) {
   const isActive =
     side === "engine" ? isEngineSearching : state.status.kind === "human-turn";
 
+  /*
+   * The king on this side of the board is in check.
+   *
+   * The last move having given check means the side *to move* is the one in it,
+   * and `isActive` already means "this row is the side to move" — so the two
+   * compose without deriving a position. Mate is excluded: the game is over, the
+   * result plate says so, and a check legend under it would be reporting the
+   * penultimate state of a finished game.
+   */
+  const lastPly = state.history[state.history.length - 1];
+  const inCheck = isActive && !!lastPly?.isCheck && !lastPly.isMate;
+
   let status = "";
   let statusColor = "var(--text-dim)";
 
@@ -231,6 +243,12 @@ export function PlayerRow({ side }: PlayerRowProps) {
           color: statusColor,
         }}
       >
+        {/*
+          Sentence case in the literal, uppercased in CSS — the same rule the
+          rest of the legends follow, because Playwright's accessible-name
+          computation applies text-transform and Testing Library's does not.
+        */}
+        {inCheck && <span className="vx-alert-legend">Check</span>}
         {status}
         {side === "engine" && isEngineSearching && <SearchIndicator />}
       </span>

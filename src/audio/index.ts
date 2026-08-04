@@ -3,6 +3,8 @@ export type SoundEvent =
   | "capture"
   | "check"
   | "premove"
+  | "illegal"
+  | "tenseconds"
   | "victory"
   | "defeat"
   | "draw";
@@ -184,6 +186,54 @@ export class AudioEngine {
 
           osc.start(now + delay);
           osc.stop(now + delay + 0.015);
+        }
+        break;
+      }
+
+      case "illegal": {
+        // A dull buzz against the wooden click of a move that worked: same
+        // family of sound, deliberately the wrong end of it.
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+
+        osc.type = "square";
+        osc.frequency.setValueAtTime(150, now);
+        osc.frequency.exponentialRampToValueAtTime(90, now + 0.12);
+
+        filter.type = "lowpass";
+        filter.frequency.setValueAtTime(700, now);
+
+        gain.gain.setValueAtTime(0.35, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.masterGain);
+
+        osc.start(now);
+        osc.stop(now + 0.12);
+        break;
+      }
+
+      case "tenseconds": {
+        // Two dry ticks high above everything else in the set, so it reads as
+        // the clock rather than as anything happening on the board.
+        for (const delay of [0, 0.12]) {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+
+          osc.type = "square";
+          osc.frequency.setValueAtTime(1760, now + delay);
+
+          gain.gain.setValueAtTime(0.22, now + delay);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.03);
+
+          osc.connect(gain);
+          gain.connect(this.masterGain);
+
+          osc.start(now + delay);
+          osc.stop(now + delay + 0.03);
         }
         break;
       }

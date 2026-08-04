@@ -75,6 +75,64 @@ export function App() {
     });
   }, []);
 
+  /*
+   * Stepping through the game with the arrow keys — which `SystemLine` has been
+   * telling players to do since before anything listened for it.
+   *
+   * `setCursor` already clamps the index and already knows what to do about a
+   * search in flight (discard it on the way out of the live position, restart it
+   * on the way back), so this only has to decide where to point.
+   */
+  useEffect(() => {
+    if (!controller) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      // A dialog owns the keyboard while it is open; browsing the game behind
+      // one is not something anybody asked for.
+      if (document.querySelector('[role="dialog"]')) return;
+
+      const target = e.target as HTMLElement | null;
+      if (target) {
+        if (target.tagName === "SELECT" || target.isContentEditable) return;
+        // The notation field holds focus almost all the time, so refusing every
+        // keystroke aimed at it would mean refusing them nearly always. Arrows
+        // move the caret when there is something to move it through, and browse
+        // the game when there is not.
+        const isTextField =
+          target.tagName === "INPUT" || target.tagName === "TEXTAREA";
+        if (isTextField && (target as HTMLInputElement).value !== "") return;
+      }
+
+      const { cursor, history } = useGameStore.getState();
+
+      switch (e.key) {
+        case "ArrowLeft":
+          controller.setCursor(cursor - 1);
+          break;
+        case "ArrowRight":
+          controller.setCursor(cursor + 1);
+          break;
+        case "ArrowUp":
+          controller.setCursor(0);
+          break;
+        case "ArrowDown":
+          controller.setCursor(history.length);
+          break;
+        default:
+          return;
+      }
+
+      // Only for keys actually handled, so the board's own Escape and the
+      // page's scrolling are left alone.
+      e.preventDefault();
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [controller]);
+
   const resumeStoredGame = useCallback(() => {
     const game = resumable;
     setResumable(null);

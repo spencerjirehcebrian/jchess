@@ -3,6 +3,7 @@ import { useGameStore } from "../store";
 import { GameController } from "../store/controller";
 import { positionAfter, legalMoves, toUci } from "../core/rules";
 import { matchPrefix } from "../core/san-parser";
+import { audioEngine } from "../audio";
 
 interface NotationInputProps {
   controller: GameController | null;
@@ -73,6 +74,10 @@ export function NotationInput({ controller }: NotationInputProps) {
   };
 
   const triggerShake = () => {
+    // Heard as well as seen. The shake is 220ms of movement in a field the
+    // player is looking away from as they type, and it is suppressed outright
+    // under prefers-reduced-motion — where this is the only refusal left.
+    audioEngine.playSound("illegal");
     setIsShaking(true);
     setTimeout(() => setIsShaking(false), 220);
   };

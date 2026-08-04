@@ -6,6 +6,7 @@ import {
   createClock,
   flaggedColor,
   opposite,
+  remainingFor,
   stopClock,
   switchTurn,
   timeControlById,
@@ -26,6 +27,9 @@ import { getDifficulty } from "../core/difficulty";
 import { audioEngine } from "../audio";
 import { getConfig } from "../config";
 import { THEMES, applyThemeToCss } from "../render/voxel/palette";
+
+/** When the clock is worth interrupting the game to mention. */
+const LOW_TIME_MS = 10_000;
 
 function newGameId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -61,6 +65,9 @@ export class GameController {
 
   private flagTimer: ReturnType<typeof setInterval> | null = null;
   private readonly onVisibilityChange = () => this.checkFlag();
+
+  /** Latches the ten-second warning so it sounds once a game, not once a tick. */
+  private lowTimeWarned = false;
 
   constructor(store: Store, engine?: Engine) {
     this.store = store;
@@ -130,6 +137,24 @@ export class GameController {
     }
   }
 
+  /**
+   * Ten seconds left, said out loud, once.
+   *
+   * Only for the player. The engine's clock running down is not something
+   * anyone needs warning about, and the flag watch ticks five times a second —
+   * so this latches per game rather than per tick, or it would fire fifty
+   * times on the way to zero.
+   */
+  private warnIfLowOnTime(clock: ClockState, human: Color, now: number): void {
+    if (clock.runningFor !== human || this.lowTimeWarned) return;
+
+    const left = remainingFor(clock, human, now);
+    if (left > 0 && left <= LOW_TIME_MS) {
+      this.lowTimeWarned = true;
+      audioEngine.playSound("tenseconds");
+    }
+  }
+
   private checkFlag(): void {
     const state = this.state;
     const clock = state.clock;
@@ -140,6 +165,8 @@ export class GameController {
     }
 
     const now = performance.now();
+    this.warnIfLowOnTime(clock, state.humanColor, now);
+
     const flagged = flaggedColor(clock, now);
     if (!flagged) return;
 
@@ -180,6 +207,7 @@ export class GameController {
     // Before any setState, so a reply already in flight is discarded rather
     // than appended to the freshly reset board.
     this.cancelEngineSearch();
+    this.lowTimeWarned = false;
 
     const config = getConfig();
     const humanColor = options?.humanColor ?? "white";
@@ -241,6 +269,7 @@ export class GameController {
     meta: { id: string; humanColor: Color; difficulty: number },
   ): void {
     this.cancelEngineSearch();
+    this.lowTimeWarned = false;
 
     const posNow = positionAfter(
       restored.initialFen,
@@ -607,6 +636,10 @@ export class GameController {
           clock: this.clockAfterMoves(state.clock, 1, clockNow),
         }));
         if (headPremove) {
+          // The one rejection the player did not ask for and is not looking at:
+          // they queued this move, the engine's reply made it illegal, and the
+          // board flashes it away while their attention is elsewhere.
+          audioEngine.playSound("illegal");
           this.onPremoveFailed?.([headPremove.from, headPremove.to]);
         }
         return;

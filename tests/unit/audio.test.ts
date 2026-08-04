@@ -18,6 +18,8 @@ describe("AudioEngine unit tests", () => {
       audio.playSound("capture");
       audio.playSound("check");
       audio.playSound("premove");
+      audio.playSound("illegal");
+      audio.playSound("tenseconds");
       audio.playSound("victory");
       audio.playSound("defeat");
       audio.playSound("draw");
