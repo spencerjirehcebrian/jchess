@@ -50,6 +50,8 @@ export class Renderer {
   private rafHandle: number | null = null;
   private resizeRafHandle: number | null = null;
   private boardFlipped = false;
+  /** Which orientation the coordinates currently baked into the mesh read for. */
+  private meshedFlipped = false;
   private resizeObserver: ResizeObserver | null = null;
   private hoveredSquare: Square | null = null;
   private currentBoardSize: string = "full";
@@ -606,7 +608,7 @@ export class Renderer {
     }
     if (this.boardMesh) {
       this.boardMesh.geometry.dispose();
-      this.boardMesh.geometry = meshBoard(theme);
+      this.boardMesh.geometry = meshBoard(theme, this.boardFlipped);
     }
     this.pieceManager.setTheme(theme);
     this.overlayManager.setTheme(theme);
@@ -621,13 +623,19 @@ export class Renderer {
   }
 
   /**
-   * Pieces are remapped square-by-square when the board flips, but the frame's
-   * engraved coordinates are baked into the mesh, so the mesh itself turns.
+   * Pieces are remapped square-by-square when the board flips. The frame's
+   * engraved coordinates are baked into the mesh, so the mesh is re-stamped for
+   * the new orientation rather than turned — turning it would print every
+   * letter and number upside down under a camera that never orbits.
+   *
+   * The store calls this on every update, so the re-mesh is gated on the
+   * orientation actually having changed.
    */
   private applyBoardOrientation(): void {
-    if (this.boardMesh) {
-      this.boardMesh.rotation.y = this.boardFlipped ? Math.PI : 0;
-    }
+    if (!this.boardMesh || this.meshedFlipped === this.boardFlipped) return;
+    this.meshedFlipped = this.boardFlipped;
+    this.boardMesh.geometry.dispose();
+    this.boardMesh.geometry = meshBoard(this.theme, this.boardFlipped);
   }
 
   private handlePointerDown(e: PointerEvent): void {

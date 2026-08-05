@@ -226,10 +226,14 @@ export function App() {
         </div>
 
         {/*
-          One instrument, not a stack of cards. The two players bracket the
-          transcript and the dividers are hairlines, so the extrusion reads
-          once at the scale of a real object instead of four times at card
-          scale, where it only looked like noise.
+          One instrument, not a stack of cards. The dividers are hairlines, so
+          the extrusion reads once at the scale of a real object instead of four
+          times at card scale, where it only looked like noise.
+
+          Top to bottom: what the machine is, what has happened, who is playing,
+          and the keys. The two players sit together directly above the keys
+          rather than bracketing the transcript — a pair of readouts to compare
+          against each other, not a frame around the record.
         */}
         <div
           className="app-rail vx-panel"
@@ -284,13 +288,12 @@ export function App() {
             </span>
           </h1>
 
-          <PlayerRow side="engine" />
-
           {state.status.kind === "setup" ? (
             /*
-              Before there is a game, the transcript's slot holds the choices:
-              strength, time, colour. The panel and the record never exist at
-              once — starting the game swaps one for the other.
+              Before there is a game, the rail holds the choices and nothing
+              else: strength, time, colour. The two player rows go with the
+              transcript — with no game to report they had only placeholders to
+              say, next to the panel that is already asking the question.
             */
             <SetupPanel controller={controller} />
           ) : (
@@ -303,12 +306,17 @@ export function App() {
               <EvalStrip />
 
               <MoveList controller={controller} />
+
+              <SystemLine />
+
+              {/* The hairline that separates the record from the players. */}
+              <div style={{ borderTop: "1px solid var(--border)" }}>
+                <PlayerRow side="engine" />
+              </div>
+
+              <PlayerRow side="human" />
             </>
           )}
-
-          <SystemLine />
-
-          <PlayerRow side="human" />
 
           <div
             style={{

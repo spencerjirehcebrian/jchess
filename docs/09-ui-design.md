@@ -273,11 +273,15 @@ Board fills the left column, square, capped at 720px. Notation field directly be
 divided by hairlines, so the extrusion reads once at the scale of a real object
 instead of once per card, where it only looks like noise.
 
-**The two players bracket the transcript.** Stockfish above, you below, each
-carrying their own name, the material they have taken, their advantage, and a
-clock slot. Only the material mirrors — it sits against the transcript that
-records the capturing — because both names still read before their own detail
-line.
+**The two players sit together above the keys.** Stockfish above, you below,
+under the transcript and over the key plate, each carrying their own name, the
+material they have taken, their advantage, and a clock slot. Both rows read the
+same way down — name, detail line, material — because a pair meant to be
+compared should not print the same three lines in two different orders.
+
+**They exist only once a game does.** In setup the rail is the nameplate, the
+choices, and the Start key. With no game to report, the rows had nothing to say
+that the setup panel was not already asking.
 
 **Status belongs to the player it describes.** "Thinking" and the depth
 indicator are things Stockfish is doing; "your move" is addressed to exactly one
@@ -286,7 +290,8 @@ carries the lit surface, and the status text beside it says the same thing in
 words, so turn state is never colour alone.
 
 The one message belonging to neither player — history browsing, engine failure —
-gets a single line above the human row that collapses to nothing when silent.
+gets a single line between the transcript and the players that collapses to
+nothing when silent.
 
 ### Tablet (640–1023px)
 
@@ -490,7 +495,7 @@ so nothing has to keep a second copy of which one is current.
 
 | | Rail's middle band | The state key |
 |---|---|---|
-| **Setup** | Setup panel: level, time control, side | `Start game` |
+| **Setup** | Setup panel: level, time control, side — and no player rows | `Start game` |
 | **Playing** | Transcript, with Take back and Hint on the plate | `Resign` |
 | **Finished** | Assessment gauge above the transcript, both browsable | `New game` |
 

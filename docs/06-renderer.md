@@ -209,7 +209,7 @@ Pool the quads. Allocate the maximum count once at boot, toggle `visible`, and n
 
 500ms, ease-in-out, animating camera yaw 0 → 180.
 
-- Coordinate labels on the frame counter-rotate so they stay upright. Do this by swapping which two frame edges show labels at the animation midpoint, not by rotating the glyph geometry.
+- Coordinate labels stay upright. The camera turns; the glyphs must not. All four frame bands carry labels, so re-stamp the board mesh for the new orientation — near edge `h..a`, ranks counting down — rather than rotating the mesh or the glyph geometry, either of which prints every label upside down. Gate the re-mesh on the orientation actually changing; the store pushes state on every move.
 - The knight geometry is colour-facing, not camera-facing; it does not change on flip.
 - Input is disabled for the duration.
 - Under `prefers-reduced-motion`, snap instantly.

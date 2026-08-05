@@ -173,13 +173,8 @@ export function PlayerRow({ side }: PlayerRowProps) {
   let status = "";
   let statusColor = "var(--text-dim)";
 
-  const isSetup = state.status.kind === "setup";
-
   if (side === "engine") {
-    if (isSetup) status = "Ready";
-    else if (isEngineSearching) status = "Thinking";
-  } else if (isSetup) {
-    status = "Choose your side";
+    if (isEngineSearching) status = "Thinking";
   } else if (state.status.kind === "human-turn") {
     if (state.premoves.length > 0) {
       status = `${state.premoves.length} premove${state.premoves.length > 1 ? "s" : ""} queued`;
@@ -197,11 +192,9 @@ export function PlayerRow({ side }: PlayerRowProps) {
   const detail =
     side === "engine"
       ? `level ${state.difficulty} · ${level?.label ?? ""}`
-      : // A colour not yet drawn is not a colour being played. Random says so
-        // until the game starts and the coin has actually landed.
-        isSetup && state.colorChoice === "random"
-        ? "side undecided"
-        : `playing ${color}`;
+      : // The row only exists once a game does, so the coin has already landed
+        // and there is always a colour to name.
+        `playing ${color}`;
 
   const lead = advantage[color];
 
@@ -342,25 +335,15 @@ export function PlayerRow({ side }: PlayerRowProps) {
       }}
     >
       {/*
-        Only the material mirrors. Both names still read before their own
-        detail line, because "playing white" above an unread "You" asks the
-        reader to hold a fact before they know whose it is. What matters is
-        that each side's captures sit against the transcript that records the
-        capturing, and that survives on its own.
+        Both rows read the same way down: who, what they are playing at, what
+        they have taken. The material used to mirror on the human row so each
+        side's captures sat against the transcript that recorded them — with the
+        two rows stacked together beneath it, that reason is gone, and mirroring
+        would only make the same three lines read in two different orders.
       */}
-      {side === "engine" ? (
-        <>
-          {identity}
-          {detailLine}
-          {material}
-        </>
-      ) : (
-        <>
-          {material}
-          {identity}
-          {detailLine}
-        </>
-      )}
+      {identity}
+      {detailLine}
+      {material}
     </div>
   );
 }

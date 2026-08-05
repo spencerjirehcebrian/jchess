@@ -250,14 +250,15 @@ The board is a single mesh, generated the same way:
 - 8 × 8 squares, each 13 × 13 voxels, on a tray 6 voxels deep.
 - A frame 8 voxels wide standing 1 voxel proud of the playing surface, so the board reads as a tray rather than a decal.
 - A 1-voxel inlay line in `frameInlay` separating the frame from the squares.
-- Rank and file coordinates engraved into the frame — recessed to the height of the playing surface and coloured `frameInlay` — as 3 × 5 glyphs on two adjacent edges. The frame is 8 wide to fit them: inlay, a voxel of margin, the 5-voxel glyph, a voxel before the outer edge.
+- Rank and file coordinates engraved into the frame — recessed to the height of the playing surface and coloured `frameInlay` — as 3 × 5 glyphs on all four edges, files on the near and far bands and ranks on the left and right, so both sides of the board have the row and column in front of them labelled. The frame is 8 wide to fit them: inlay, a voxel of margin, the 5-voxel glyph, a voxel before the outer edge.
 
 Columns are emitted as a top face plus whatever wall is exposed against each
 neighbour. That single rule gives the perimeter its full depth, the frame lip
 its one-voxel step, and the engraved glyphs their shadowed edges for free.
 
-Because the coordinates are baked into the mesh, the board mesh is rotated 180
-degrees when the board flips rather than rebuilt.
+Because the coordinates are baked into the mesh, flipping the board re-meshes it
+with the labels stamped for the new orientation. It must not rotate the mesh:
+the camera is fixed, so a turned board is a board printed upside down.
 
 Generate the board from the same mesher, treating it as one large voxel grid, so it shares the shading model and reads as part of the same world. Do not build the board from Three.js primitives — the mismatch in shading is immediately visible.
 

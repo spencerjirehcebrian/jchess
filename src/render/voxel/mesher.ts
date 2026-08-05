@@ -231,12 +231,16 @@ const RANK_LABELS = ["1", "2", "3", "4", "5", "6", "7", "8"];
 /**
  * Marks the voxel columns occupied by an engraved coordinate glyph.
  *
- * Files run along the +Z frame edge (nearest the camera, rank 1) and ranks
- * along the -X edge (file a), which is how a player sitting at the white side
- * reads them. The mesh is rotated 180 degrees when the board flips, so the
- * labels stay correct for both orientations without a rebuild.
+ * All four frame bands carry labels — files on the near (+Z) and far (-Z)
+ * edges, ranks on the left (-X) and right (+X) — so whichever side the player
+ * is sitting at has the coordinates for the row and column in front of them.
+ *
+ * The glyphs are always stamped upright for the fixed camera, and never turn.
+ * Which letter lands in which column is what changes: flipping re-stamps the
+ * mask so the near edge reads h..a and the ranks count down. Rotating the mesh
+ * instead would be cheaper and would print every label upside down.
  */
-function buildCoordinateMask(): Set<number> {
+function buildCoordinateMask(flipped: boolean): Set<number> {
   const mask = new Set<number>();
   const total = BOARD_TOTAL_VOXELS;
   const fw = BOARD_FRAME_WIDTH;
@@ -256,16 +260,20 @@ function buildCoordinateMask(): Set<number> {
     // the frame band.
     const originX =
       fw + file * SQUARE_VOXELS + Math.floor((SQUARE_VOXELS - 3) / 2);
-    const originZ = total - fw + 2;
-    stamp(COORD_GLYPHS[FILE_LABELS[file]!]!, originX, originZ);
+    const glyph = COORD_GLYPHS[FILE_LABELS[flipped ? 7 - file : file]!]!;
+    stamp(glyph, originX, total - fw + 2);
+    // The far band is the near one mirrored across the board, so the same
+    // inset from the outer edge puts the two rows of letters level.
+    stamp(glyph, originX, 1);
   }
 
   for (let rank = 0; rank < 8; rank++) {
     // Rank 1 sits at high Z, matching squareToWorld.
-    const originX = 2;
     const originZ =
       fw + (7 - rank) * SQUARE_VOXELS + Math.floor((SQUARE_VOXELS - 5) / 2);
-    stamp(COORD_GLYPHS[RANK_LABELS[rank]!]!, originX, originZ);
+    const glyph = COORD_GLYPHS[RANK_LABELS[flipped ? 7 - rank : rank]!]!;
+    stamp(glyph, 2, originZ);
+    stamp(glyph, total - fw + 3, originZ);
   }
 
   return mask;
@@ -277,7 +285,7 @@ function buildCoordinateMask(): Set<number> {
  * plus whatever wall is exposed against each neighbour, which gives the
  * perimeter its full depth and the frame lip its one-voxel step for free.
  */
-export function meshBoard(theme: Theme): THREE.BufferGeometry {
+export function meshBoard(theme: Theme, flipped = false): THREE.BufferGeometry {
   const positions: number[] = [];
   const normals: number[] = [];
   const colors: number[] = [];
@@ -294,7 +302,7 @@ export function meshBoard(theme: Theme): THREE.BufferGeometry {
   const fw = BOARD_FRAME_WIDTH;
   const offset = -total / 2;
 
-  const coordMask = buildCoordinateMask();
+  const coordMask = buildCoordinateMask(flipped);
 
   const isFrame = (x: number, z: number) =>
     x < fw || x >= total - fw || z < fw || z >= total - fw;
