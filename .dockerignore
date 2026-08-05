@@ -1,0 +1,9 @@
+node_modules
+dist
+test-results
+playwright-report
+.playwright-mcp
+.git
+
+# tests/ is deliberately absent: tsconfig.json includes it, and the build runs
+# tsc before vite.
